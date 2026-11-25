@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 # Ordem de preferência dos provedores de IA - se o primeiro falhar/estourar cota,
 # tenta o próximo automaticamente. Cada usuário pode configurar 1, 2 ou os 3.
-ORDEM_PROVEDORES_IA = ["gemini", "groq", "nvidia"]
+ORDEM_PROVEDORES_IA = ["groq", "gemini", "nvidia"]
 
 # Timeout por chamada de IA. Sem ele, um provedor que pendura a conexão travaria
 # a geração pra sempre e o fallback nunca chegaria ao próximo provedor.
@@ -138,7 +138,7 @@ def groq_gerar_mensagem(system, user, temperatura=TEMPERATURA_COPY, formato_json
     cliente = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=chave, timeout=IA_TIMEOUT_SEGUNDOS)
     extras = {"response_format": {"type": "json_object"}} if formato_json else {}
     resposta = cliente.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="openai/gpt-oss-20b",
         messages=[
             {"role": "system", "content": system},
             {"role": "user", "content": user},
