@@ -477,8 +477,11 @@ class TestRegistroContato:
             "telefone": "5565996757327",
             "mensagens": [{"autor": "vendedor", "texto": "Olá", "id_externo": "enviada"}],
         }
-        for _ in range(2):
-            assert cliente.post("/api/conversa/ingestao", json=lote).status_code == 200
+        primeira = cliente.post("/api/conversa/ingestao", json=lote)
+        segunda = cliente.post("/api/conversa/ingestao", json=lote)
+        assert primeira.status_code == segunda.status_code == 200
+        assert primeira.get_json()["contato_registrado"] is True
+        assert segunda.get_json()["contato_registrado"] is False
         assert cliente.get("/api/leads/place-1").get_json()["status"] == "contatado"
         historico = cliente.get("/api/leads/place-1/historico").get_json()
         assert sum(h["status_novo"] == "contatado" for h in historico) == 1
