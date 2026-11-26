@@ -272,7 +272,7 @@ def avaliar_site_completo(url):
         dominio_morto = _e_falha_de_dns(erro)
         resposta = None
 
-    if resposta is None and not tinha_esquema and not dominio_morto:
+    if resposta is None and not tinha_esquema and not dominio_morto and not problemas:
         # o servidor pode nem escutar em HTTPS (site antigo, só HTTP): antes de
         # declarar "fora do ar", tenta em HTTP puro - se abrir, o diagnóstico
         # correto é "sem HTTPS" (detectado abaixo pela URL final)
@@ -293,7 +293,7 @@ def avaliar_site_completo(url):
 
     # Um endereço cadastrado em HTTP pode ter HTTPS disponível, sem redirecionar.
     https_disponivel = False
-    if resposta.url.lower().startswith("http://"):
+    if resposta.url.lower().startswith("http://") and (tinha_esquema and url_completa.lower().startswith("http://")):
         try:
             alternativa = requisitar("https://" + resposta.url[7:])
             https_disponivel = (
@@ -305,6 +305,13 @@ def avaliar_site_completo(url):
         except RequestException:
             pass
 
+    if resposta.status_code in (401, 403, 429):
+        problemas.append(f"acesso automático limitado (HTTP {resposta.status_code}); disponibilidade não confirmada")
+        return "ruim", problemas, {
+            "tem": [], "falta": [], "url_final": resposta.url,
+            "seguranca": "certificado_invalido" if any("SSL" in p for p in problemas) else
+                         "https" if resposta.url.lower().startswith("https://") else "http",
+        }
     if resposta.status_code >= 400:
         problemas.append(f"site responde com erro (HTTP {resposta.status_code})")
 
@@ -385,7 +392,7 @@ def capturar_conteudo_site(url):
         )
     except RequestException:
         return None
-    if resposta.status_code >= 400:
+    if resposta.status_code >= 400 or not dominio_e_proprio(resposta.url):
         return None
 
     html = (resposta.text or "")[:300_000]
