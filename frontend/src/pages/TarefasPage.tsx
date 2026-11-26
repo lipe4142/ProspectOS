@@ -60,7 +60,11 @@ function LinhaFollowup({
               href="#"
               onClick={(evento) => {
                 evento.preventDefault()
-                abrirWhatsappInstalado(tarefa.whatsapp_link!, tarefa.mensagem)
+                try {
+                  abrirWhatsappInstalado(tarefa.whatsapp_link!, tarefa.mensagem)
+                } catch (erro) {
+                  toast.error(erro instanceof Error ? erro.message : "Não foi possível abrir o WhatsApp.")
+                }
               }}
             >
               <MessageCircle className="size-3.5" />
@@ -140,7 +144,11 @@ function LinhaLeadQuente({
               href="#"
               onClick={(evento) => {
                 evento.preventDefault()
-                abrirWhatsappInstalado(lead.whatsapp_link!, lead.mensagem)
+                try {
+                  abrirWhatsappInstalado(lead.whatsapp_link!, lead.mensagem)
+                } catch (erro) {
+                  toast.error(erro instanceof Error ? erro.message : "Não foi possível abrir o WhatsApp.")
+                }
               }}
               title={
                 lead.mensagem
