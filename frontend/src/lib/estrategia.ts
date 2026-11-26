@@ -89,9 +89,9 @@ export function montarEstrategia(lead: Lead): EstrategiaLead {
   }
 
   if (!siteRuim) {
-    cenario = "Sem site"
+    cenario = "Site institucional não encontrado"
     angulo =
-      "Negócio bem avaliado mas invisível pra quem pesquisa no Google fora do Maps. O argumento: cada pesquisa sem resultado é um cliente indo pro concorrente que aparece. Venda o PRIMEIRO site como a peça que falta pra reputação virar clientes novos."
+      "Não foi localizado um site institucional próprio. Ofereça uma prévia personalizada para apresentar serviços e facilitar o contato, sem presumir que a empresa não tenha outro endereço."
     objecoes = OBJECOES_SEM_SITE
     if (lead.instagram_url) {
       ganchos.push(
@@ -111,12 +111,12 @@ export function montarEstrategia(lead: Lead): EstrategiaLead {
       "Diga que tentou acessar o site e ele está fora do ar - você está avisando, não vendendo. A oferta vem depois da reação."
     )
   } else if (problemas.includes("ssl") || problemas.includes("https") || problemas.includes("misto")) {
-    cenario = "Site inseguro"
+    cenario = "Conexão a revisar"
     angulo =
-      'O navegador marca o site deles como "não seguro" - isso espanta cliente na hora e derruba a posição no Google. Argumento: a reputação que construíram está sendo minada por um cadeado vermelho.'
+      "Explique o problema confirmado de conexão: HTTP não criptografa os dados, certificado inválido pode gerar alerta e recursos mistos podem ser bloqueados. HTTPS protege a conexão, mas não garante a segurança completa do site."
     objecoes = OBJECOES_SITE_RUIM
     ganchos.push(
-      'Mande um print do aviso de "não seguro" do navegador - é visual, indiscutível e ninguém quer isso associado à marca.'
+      "Ofereça uma prévia de site moderno com conexão HTTPS configurada corretamente. Só mencione avisos do navegador que tiver confirmado."
     )
   } else if (problemas.includes("celular")) {
     cenario = "Site não-mobile"
