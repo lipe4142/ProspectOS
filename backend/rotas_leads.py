@@ -661,6 +661,13 @@ def reanalisar_site(place_id):
     novo_status = {"ok": "site_ok", "ruim": "site_ruim", "sem_site": "sem_site"}[situacao]
     problemas_texto = "; ".join(problemas) or None
 
+    # IA apenas traduz os resultados; a situação e a segurança vêm da checagem real.
+    # Só na reanálise solicitada, para não consumir cotas em buscas em lote.
+    if checklist is not None:
+        resumo = ia.resumir_diagnostico_site(lead["nome"], situacao, problemas, checklist)
+        if resumo:
+            checklist["resumo_ia"] = resumo
+
     agora = datetime.now().isoformat(timespec="seconds")
     conexao = db.conectar()
     try:
