@@ -24,6 +24,7 @@ let janelaWhatsapp = null;
 let backend = null;
 let backendEncerradoDeProposito = false;
 let atualizacaoBaixada = false;
+const modoLocal = !app.isPackaged && process.env.FLP_PROSPECT_LOCAL === "1";
 let portaBackend = null; // preenchida quando o sidecar anuncia a porta
 
 const ICONE = path.join(__dirname, "prospectos.ico");
@@ -232,7 +233,7 @@ function registrarPonteWhatsapp() {
   ipcMain.on("whatsapp:mensagens", async (evento, dados) => {
     if (!veioDaJanelaWhatsapp(evento)) return;
     const resultado = await postarNoBackend("/api/conversa/ingestao", dados);
-    if (resultado && resultado.novas > 0) {
+    if (resultado && (resultado.novas > 0 || resultado.contato_registrado)) {
       avisarInterface("cockpit:mensagens-novas", resultado);
     } else if (resultado && resultado.vinculado === false) {
       // conversa aberta não pertence a nenhum lead: o cockpit mostra o aviso
@@ -288,7 +289,7 @@ function criarJanela(porta) {
     },
   });
   rotearLinksExternos(janela.webContents, porta);
-  janela.loadURL(`http://127.0.0.1:${porta}`);
+  janela.loadURL(modoLocal ? "http://localhost:5173" : `http://127.0.0.1:${porta}`);
   janela.on("closed", () => {
     janela = null;
     // a janela principal manda: fechou o app, fecha o WhatsApp junto
@@ -426,9 +427,11 @@ app.whenReady().then(async () => {
   try {
     montarMenu();
     registrarPonteWhatsapp();
-    const porta = await subirBackend();
+    // O inicializador local já sobe Flask e Vite usando o banco atual do projeto.
+    const porta = modoLocal ? 5000 : await subirBackend();
+    portaBackend = porta;
     criarJanela(porta);
-    configurarAutoUpdate();
+    if (!modoLocal) configurarAutoUpdate();
   } catch (erro) {
     dialog.showErrorBox(
       "ProspectOS não conseguiu iniciar",
