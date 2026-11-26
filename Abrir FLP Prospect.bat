@@ -23,5 +23,19 @@ if errorlevel 1 (
  pause
  exit /b 1
 )
-start "" "http://localhost:5173"
+if not exist "desktop\node_modules\electron\dist\electron.exe" (
+ echo Instalando a interface desktop para captura do WhatsApp...
+ pushd desktop
+ call npm ci --no-audit --no-fund
+ if errorlevel 1 (
+  popd
+  echo Instalacao do desktop falhou. O modo navegador exige confirmacao manual.
+  start "" "http://localhost:5173"
+  pause
+  exit /b 1
+ )
+ popd
+)
+set "FLP_PROSPECT_LOCAL=1"
+start "FLP Prospect" /D "%~dp0desktop" "%~dp0desktop\node_modules\electron\dist\electron.exe" .
 exit /b 0
