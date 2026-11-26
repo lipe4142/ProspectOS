@@ -41,7 +41,13 @@ export interface Lead {
   site_url: string | null
   site_status: "sem_site" | "site_ruim" | "site_ok" | null
   site_problemas: string | null
-  site_checklist: { tem: string[]; falta: string[] } | null
+  site_checklist: {
+    tem: string[]
+    falta: string[]
+    seguranca?: "https" | "http" | "http_com_https" | "certificado_invalido" | "misto" | "indeterminada"
+    tipo_endereco?: "plataforma" | "dominio_aparente"
+    url_final?: string
+  } | null
   instagram_url: string | null
 }
 
