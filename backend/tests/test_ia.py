@@ -484,3 +484,9 @@ def test_resumo_diagnostico_usa_fatos_e_provedor_configurado(monkeypatch):
 def test_resumo_diagnostico_sem_provedores_nao_bloqueia(monkeypatch):
     monkeypatch.setattr(db, "obter_config", lambda chave, default=None: default)
     assert ia.resumir_diagnostico_site("Empresa", "ok", [], {"seguranca": "https"}) is None
+
+
+def test_copy_nao_pode_afirmar_ausencia_de_contato():
+    assert ia.copy_contato_tem_alegacao_arriscada("Vi que o site ainda não tem telefone e e-mail clicáveis.")
+    assert ia.copy_contato_tem_alegacao_arriscada("Notei que falta um botão de WhatsApp.")
+    assert not ia.copy_contato_tem_alegacao_arriscada("Posso preparar uma prévia sem compromisso, preservando o WhatsApp?")
