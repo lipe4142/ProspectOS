@@ -673,3 +673,63 @@ class TestIndices:
         cx = sqlite3.connect(":memory:")
         processar.preparar_banco(cx)
         processar.preparar_banco(cx)  # nao pode quebrar rodando de novo
+
+
+class TestDiagnosticoConfiavel:
+    def test_links_de_terceiros_nao_sao_sites_institucionais(self):
+        for url in ("https://wa.me/5599999999999", "https://www.doctoralia.com.br/profissional",
+                    "https://beacons.ai/empresa", "https://www.ifood.com.br/loja",
+                    "https://www.jusbrasil.com.br/perfil"):
+            assert not dominio_e_proprio(url)
+        assert dominio_e_proprio("empresa.com.br")
+        assert dominio_e_proprio("https://sites.google.com/view/empresa")
+
+    def test_busca_exige_indicio_de_identidade(self):
+        assert processar.resultado_corresponde_empresa(
+            "Clínica Aurora", {"href": "https://clinicaaurora.com.br", "title": "Início"}
+        )
+        assert not processar.resultado_corresponde_empresa(
+            "Clínica Aurora", {"href": "https://outraclinica.com.br", "title": "Outra Clínica"}
+        )
+
+    def test_link_maps_de_terceiro_busca_alternativa(self, monkeypatch):
+        monkeypatch.setattr(processar, "buscar_site_da_empresa", lambda *args: None)
+        assert processar.verificar_site_empresa("Empresa", "Cidade", "https://instagram.com/empresa") == (
+            None, "sem_site", [], None
+        )
+
+    def test_redirecionamento_para_terceiro(self, monkeypatch):
+        import requests
+        monkeypatch.setattr(requests, "get", lambda *a, **kw: RespostaFake(
+            url="https://facebook.com/empresa", text=HTML_SITE_BOM
+        ))
+        assert processar.avaliar_site_completo("https://empresa.com.br") == ("sem_site", [], None)
+
+    def test_https_valido_em_dominio_de_hospedagem(self, monkeypatch):
+        import requests
+        monkeypatch.setattr(requests, "get", lambda *a, **kw: RespostaFake(
+            url="https://empresa.vercel.app/", text=HTML_SITE_BOM
+        ))
+        _, _, checklist = processar.avaliar_site_completo("https://empresa.vercel.app")
+        assert checklist["seguranca"] == "https"
+        assert checklist["tipo_endereco"] == "plataforma"
+
+    def test_http_com_https_disponivel_sem_redirecionamento(self, monkeypatch):
+        import requests
+        monkeypatch.setattr(requests, "get", lambda url, **kw: RespostaFake(
+            url=url, text=HTML_SITE_BOM
+        ))
+        situacao, problemas, checklist = processar.avaliar_site_completo("http://empresa.com.br")
+        assert situacao == "ruim"
+        assert checklist["seguranca"] == "http_com_https"
+        assert any("sem redirecionamento" in problema for problema in problemas)
+
+    def test_bloqueio_de_robo_nao_prova_indisponibilidade(self, monkeypatch):
+        import requests
+        monkeypatch.setattr(requests, "get", lambda *a, **kw: RespostaFake(
+            status_code=403, text="Forbidden"
+        ))
+        _, problemas, checklist = processar.avaliar_site_completo("https://site.com.br")
+        assert any("disponibilidade não confirmada" in problema for problema in problemas)
+        assert not any("fora do ar" in problema for problema in problemas)
+        assert checklist["falta"] == []
