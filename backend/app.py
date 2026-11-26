@@ -54,6 +54,7 @@ import processar
 import rotas_analytics
 import rotas_config
 import rotas_conversa
+import rotas_comercial
 import rotas_instagram
 import rotas_leads
 
@@ -63,6 +64,7 @@ app.register_blueprint(rotas_instagram.bp)
 app.register_blueprint(rotas_analytics.bp)
 app.register_blueprint(rotas_config.bp)
 app.register_blueprint(rotas_conversa.bp)
+app.register_blueprint(rotas_comercial.bp)
 
 
 @app.errorhandler(Exception)

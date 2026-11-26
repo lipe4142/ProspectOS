@@ -22,6 +22,7 @@ import { LeadObservacoesForm } from "@/components/lead-detail/LeadObservacoesFor
 import { LeadMessageGenerator } from "@/components/lead-detail/LeadMessageGenerator"
 import { LeadHistoryAccordion } from "@/components/lead-detail/LeadHistoryAccordion"
 import { DeleteLeadButton } from "@/components/lead-detail/DeleteLeadButton"
+import { FerramentasComerciais } from "@/components/lead-detail/FerramentasComerciais"
 import type { Lead } from "@/types/lead"
 
 interface LeadDetailModalProps {
@@ -146,6 +147,7 @@ export function LeadDetailModal({ lead: snapshot, onClose }: LeadDetailModalProp
             </div>
 
             <div className="flex min-w-0 flex-col gap-4">
+              <FerramentasComerciais key={lead.place_id} lead={lead} />
               <LeadMessageGenerator
                 lead={lead}
                 gerarMensagem={mutations.gerarMensagem}
