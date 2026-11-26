@@ -8,11 +8,10 @@ import { TemplateSelector } from "@/components/shared/TemplateSelector"
 import { useClipboard } from "@/hooks/useClipboard"
 import { ajustarSaudacao } from "@/lib/saudacao"
 import { formatarTempoRelativo } from "@/lib/formatters"
-import { linkWhatsappComMensagem } from "@/services/tarefasService"
+import { abrirWhatsappInstalado } from "@/services/tarefasService"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useInvalidarLeads } from "@/hooks/useInvalidarLeads"
 import { httpClient } from "@/services/httpClient"
-import { conversaService } from "@/services/conversaService"
 import type { UseMutationResult } from "@tanstack/react-query"
 import type { GerarMensagemResposta, Lead } from "@/types/lead"
 
@@ -142,18 +141,16 @@ export function LeadMessageGenerator({
             className="bg-success text-white hover:bg-success/90"
             onClick={() => {
               if (jaContatado && !window.confirm("Este lead já recebeu contato. Deseja abrir o WhatsApp mesmo assim?")) return
-              if (lead.status === "novo") setAguardandoEnvio(true)
-              // avisa de quem é a conversa antes da janela abrir, pro cockpit
-              // vincular as mensagens capturadas ao lead certo
-              conversaService.registrarLeadAtivo("maps", lead.place_id).catch(() => {})
-              window.open(
-                linkWhatsappComMensagem(lead.whatsapp_link!, mensagem || null),
-                "_blank"
-              )
+              try {
+                abrirWhatsappInstalado(lead.whatsapp_link!, mensagem || null)
+                if (lead.status === "novo") setAguardandoEnvio(true)
+              } catch (erro) {
+                toast.error(erro instanceof Error ? erro.message : "Não foi possível abrir o WhatsApp.")
+              }
             }}
           >
             <MessageCircle className="size-4" />
-            Abrir WhatsApp
+            Abrir WhatsApp no PC
           </Button>
         )}
         {lead.status === "novo" && (
@@ -168,9 +165,7 @@ export function LeadMessageGenerator({
 
       {aguardandoEnvio && lead.status === "novo" && (
         <p className="rounded-md border border-border p-2 text-xs text-muted-foreground">
-          {window.prospectOS?.desktop
-            ? "Aguardando detectar sua mensagem no WhatsApp. Se não atualizar, use Confirmar que enviei."
-            : "O navegador não permite confirmar o envio automaticamente. Depois de enviar, clique em Confirmar que enviei."}
+          Envie a mensagem no WhatsApp instalado, volte aqui e clique em Confirmar que enviei.
         </p>
       )}
       <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/40 p-2.5">
