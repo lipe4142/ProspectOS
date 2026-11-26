@@ -52,6 +52,8 @@ export function LeadMessageGenerator({
     onSuccess: () => {
       invalidarLeads()
       queryClient.invalidateQueries({ queryKey: ["lead", lead.place_id] })
+      queryClient.invalidateQueries({ queryKey: ["lead-historico", lead.place_id] })
+      setAguardandoEnvio(false)
       toast.success("Contato registrado no CRM.")
     },
     onError: (erro: Error) => toast.error(erro.message),
