@@ -131,18 +131,14 @@ def _limpar(texto):
     return str(texto or "").replace("•", "-").replace("–", "-").replace("—", "-").replace("’", "'").encode("latin-1", "replace").decode("latin-1")
 
 
-# Recorte exclusivo da arte de cabeçalho solar fornecida pelo usuário.
-# Não inclui valores, nome do cliente ou quaisquer campos da proposta.
-_SOLAR_JPEG = "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"
 _PRETO = (12, 12, 12)
 _LARANJA = (255, 99, 0)
 _BRANCO = (255, 255, 255)
 
 
 class PropostaPDF(FPDF):
-    def __init__(self, solar=False):
+    def __init__(self):
         super().__init__(format="A4")
-        self.solar = solar
 
     def header(self):
         self.set_fill_color(*_PRETO)
@@ -151,20 +147,10 @@ class PropostaPDF(FPDF):
         self.polygon([(0,30),(105,30),(122,13),(210,13),(210,38),(181,37),(135,32),(0,32)], style="F")
         self.set_fill_color(20, 20, 20)
         self.polygon([(106,30),(123,15),(210,15),(210,36),(181,35),(135,30)], style="F")
-        if self.solar:
-            import base64
-            self.image(io.BytesIO(base64.b64decode(_SOLAR_JPEG)), x=111, y=0, w=99, h=37.5)
-        else:
-            self.set_draw_color(135, 64, 18)
-            self.set_line_width(.45)
-            for offset in (0, 10, 20):
-                self.line(133 + offset, 19, 160 + offset, 19)
-                self.line(160 + offset, 19, 171 + offset, 8)
-                self.ellipse(170 + offset, 7, 2, 2)
-            self.set_font("Helvetica", "B", 10)
-            self.set_text_color(220, 220, 220)
-            self.set_xy(126, 23)
-            self.cell(78, 6, "SOLUÇÕES DIGITAIS", align="R")
+        self.set_fill_color(*_PRETO)
+        self.polygon([(111,29),(124,15),(210,15),(210,29),(185,35),(135,30)], style="F")
+        self.set_fill_color(*_LARANJA)
+        self.polygon([(210,26),(210,36),(175,34),(195,30)], style="F")
         self.set_draw_color(*_LARANJA)
         self.set_line_width(.4)
         self.line(86, 5, 86, 25)
@@ -187,7 +173,7 @@ class PropostaPDF(FPDF):
             self.set_font("Helvetica", "", 10)
             self.cell(180, 5, "software com precisão")
 
-        self.set_y(41)
+        self.set_y(38)
 
     def footer(self):
         self.set_fill_color(*_LARANJA)
@@ -238,6 +224,70 @@ class PropostaPDF(FPDF):
                         self.ellipse(x+s*a-.35,y+s*b-.35,.7,.7)
 
 
+def normalizar_instagram(valor):
+    """Aceita @perfil ou URL oficial de perfil; não usa o Instagram do lead."""
+    valor = valor.strip()
+    if not valor:
+        return None
+    perfil = re.fullmatch(r"@?([A-Za-z0-9_.]{1,30})", valor)
+    if not perfil:
+        perfil = re.fullmatch(r"https://(?:www\\.)?instagram\\.com/([A-Za-z0-9_.]{1,30})/?(?:\\?[^#]*)?", valor, re.I)
+    if not perfil or perfil.group(1).lower() in {"p", "reel", "reels", "stories", "explore", "accounts", "direct"}:
+        raise ValueError("Informe o @ ou o link HTTPS do perfil do Instagram da FLP Systems.")
+    return "https://www.instagram.com/" + perfil.group(1) + "/"
+
+
+def inserir_qr_instagram(pdf, url):
+    """QR vetorial local, com quiet zone de quatro módulos e link clicável."""
+    try:
+        import qrcode
+    except ImportError as exc:
+        raise ValueError("Instale a dependência qrcode para gerar o QR Code.") from exc
+    qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=1, border=4)
+    qr.add_data(url)
+    qr.make(fit=True)
+    matriz = qr.get_matrix()
+    altura = 29
+    if pdf.will_page_break(altura + 2):
+        pdf.add_page()
+    y = pdf.get_y() + 2
+    x = 46
+    pdf.set_draw_color(*_LARANJA)
+    pdf.set_fill_color(*_BRANCO)
+    pdf.set_line_width(.35)
+    pdf.rect(x, y, 118, altura, "DF", round_corners=True, corner_radius=3)
+    tamanho = 25
+    passo = tamanho / len(matriz)
+    pdf.set_fill_color(*_PRETO)
+    for i, linha in enumerate(matriz):
+        inicio = None
+        for j, escuro in enumerate(linha + [False]):
+            if escuro and inicio is None:
+                inicio = j
+            elif not escuro and inicio is not None:
+                pdf.rect(x+3+inicio*passo, y+2+i*passo, (j-inicio)*passo, passo, "F")
+                inicio = None
+    pdf.link(x+3,y+2,tamanho,tamanho,url)
+    pdf.set_draw_color(*_LARANJA)
+    pdf.line(x+31,y+5,x+31,y+24)
+    # Ícone de câmera do Instagram, desenhado em vetor.
+    pdf.set_line_width(.65)
+    pdf.rect(x+36,y+9,9,9,round_corners=True,corner_radius=2)
+    pdf.ellipse(x+38.5,y+11.5,4,4)
+    pdf.ellipse(x+42.5,y+10.5,1,1)
+    pdf.set_text_color(*_PRETO)
+    pdf.set_font("Helvetica","B",12)
+    pdf.set_xy(x+48,y+5)
+    pdf.cell(67,6,"Acesse nosso Instagram",link=url)
+    pdf.set_font("Helvetica","",10)
+    perfil = "@" + url.rstrip("/").split("/")[-1]
+    while pdf.get_string_width(perfil)>66 and pdf.font_size_pt>7:
+        pdf.set_font_size(pdf.font_size_pt-1)
+    pdf.set_xy(x+48,y+13)
+    pdf.cell(67,6,perfil,link=url)
+    pdf.set_y(y+altura)
+
+
 def gerar_proposta_pdf(lead, dados):
     cliente = _texto(dados, "cliente", 200) or lead.get("nome") or "Cliente"
     projeto = _texto(dados, "projeto", 200) or "Desenvolvimento de site profissional"
@@ -257,12 +307,12 @@ def gerar_proposta_pdf(lead, dados):
         raise ValueError("Opção de detalhes inválida.")
     if not all((servicos, prazo, pagamento, validade)):
         raise ValueError("Preencha serviços, prazo, pagamento e validade.")
-    solar = "solar" in " ".join(str(lead.get(k) or "") for k in ("nome", "nicho", "categoria")).lower() or "solar" in cliente.lower()
-    pdf = PropostaPDF(solar=solar)
+    instagram = normalizar_instagram(_texto(dados, "instagram_flp", 200))
+    pdf = PropostaPDF()
     pdf.alias_nb_pages()
     pdf.set_title(_limpar("Proposta comercial - " + cliente))
     pdf.set_author("FLP Systems")
-    pdf.set_margins(10,41,10)
+    pdf.set_margins(10,38,10)
     pdf.set_auto_page_break(True, margin=18)
     pdf.add_page()
 
@@ -295,14 +345,14 @@ def gerar_proposta_pdf(lead, dados):
         pdf.set_xy(10,y+12)
 
     fonte(28, estilo="B")
-    pdf.cell(190,12,"PROPOSTA COMERCIAL",new_x="LMARGIN",new_y="NEXT")
+    pdf.cell(190,10,"PROPOSTA COMERCIAL",new_x="LMARGIN",new_y="NEXT")
     y=pdf.get_y()
     pdf.set_fill_color(*_LARANJA)
     pdf.rect(10,y+1,1,6,"F")
     fonte(15)
     pdf.set_xy(15,y)
     pdf.multi_cell(185,7,_limpar(projeto),new_x="LMARGIN",new_y="NEXT")
-    pdf.ln(4)
+    pdf.ln(2)
     y=pdf.get_y()
     pdf.icone("pessoa",12,y+4,10)
     fonte(11)
@@ -321,10 +371,10 @@ def gerar_proposta_pdf(lead, dados):
     fonte(10)
     pdf.set_xy(147,y+7)
     pdf.multi_cell(53,5,_limpar("Validade: "+validade),new_x="LMARGIN",new_y="NEXT")
-    pdf.set_y(max(pdf.get_y(),fim_cliente,y+17)+4)
+    pdf.set_y(max(pdf.get_y(),fim_cliente,y+17)+3)
     pdf.set_draw_color(*_LARANJA)
     pdf.line(10,pdf.get_y(),200,pdf.get_y())
-    pdf.ln(5)
+    pdf.ln(3)
 
     faixa("01","Escopo e entregáveis")
     for item in servicos.splitlines():
@@ -338,7 +388,7 @@ def gerar_proposta_pdf(lead, dados):
                 pdf.add_page()
             capacidade=max(1,int((pdf.page_break_trigger-pdf.get_y()-1.2)/5.2))
             bloco,n=n[:capacidade],n[capacidade:]
-            h=max(7,len(bloco)*5.2+1.2)
+            h=max(6,len(bloco)*5.2+.8)
             y=pdf.get_y()
             if primeira:
                 pdf.icone("check",16,y+.6,5)
@@ -349,7 +399,7 @@ def gerar_proposta_pdf(lead, dados):
             primeira=False
             if n:
                 pdf.add_page()
-    pdf.ln(4)
+    pdf.ln(2)
 
     faixa("02","Investimento",42)
     y=pdf.get_y()
@@ -372,7 +422,7 @@ def gerar_proposta_pdf(lead, dados):
             pdf.set_font_size(pdf.font_size_pt-1)
         pdf.set_xy(x+33,y+10)
         pdf.cell(57,12,_limpar(valor_txt))
-    pdf.set_y(y+31)
+    pdf.set_y(y+29)
 
     faixa("03","Prazo de entrega",43)
     partes=re.match(r"^(\d+\s+(?:dias?|semanas?|meses?|mês|horas?))\s*(.*)$",prazo,re.I)
@@ -402,7 +452,7 @@ def gerar_proposta_pdf(lead, dados):
     fonte(11,_BRANCO)
     pdf.set_xy(105 if destaque else 45,y+5)
     pdf.multi_cell(86 if destaque else 145,5.2,_limpar(complemento),new_x="LMARGIN",new_y="NEXT")
-    pdf.set_y(y+alt+5)
+    pdf.set_y(y+alt+3)
 
     faixa("04","Condições de pagamento",32)
     # Texto longo é repartido por páginas sem sobrepor o rodapé.
@@ -423,11 +473,14 @@ def gerar_proposta_pdf(lead, dados):
         fonte(11)
         pdf.set_xy(47,y+4)
         pdf.multi_cell(151,5.2,"\n".join(bloco),new_x="LMARGIN",new_y="NEXT")
-        pdf.set_y(y+alt+4)
+        pdf.set_y(y+alt+2)
         if texto_linhas:
             pdf.add_page()
     fonte(10,estilo="I")
     pdf.multi_cell(190,5,_limpar("Proposta sujeita à aprovação das partes. Não constitui contrato."),align="C",new_x="LMARGIN",new_y="NEXT")
+
+    if instagram:
+        inserir_qr_instagram(pdf, instagram)
 
     if incluir and any(valor for _,valor in extras):
         pdf.add_page()

@@ -63,3 +63,24 @@ def test_modelo_compacto_solar():
     })
     assert pdf.startswith(b"%PDF")
     assert b"/Count 1" in pdf
+
+
+def test_instagram_normalizado():
+    from rotas_comercial import normalizar_instagram
+    assert normalizar_instagram("@empresa.exemplo") == "https://www.instagram.com/empresa.exemplo/"
+    assert normalizar_instagram("https://instagram.com/empresa.exemplo/?igsh=123") == "https://www.instagram.com/empresa.exemplo/"
+    assert normalizar_instagram("") is None
+    with pytest.raises(ValueError):
+        normalizar_instagram("https://example.com/perfil")
+
+
+def test_proposta_com_qr_instagram():
+    pdf = gerar_proposta_pdf({"nome": "Empresa Teste"}, {
+        "servicos": "Design personalizado\nLayout responsivo\nApresentação institucional\nIntegração com WhatsApp\nTestes e publicação",
+        "inicial": "0", "mensal": "90", "prazo": "7 dias após receber os materiais e aprovar o escopo",
+        "pagamento": "Valor inicial conforme acordado. Mensalidade com vencimento definido na contratação.",
+        "validade": "7 dias", "instagram_flp": "@empresa.exemplo",
+    })
+    assert pdf.startswith(b"%PDF")
+    assert b"/Count 1" in pdf
+    assert b"https://www.instagram.com/empresa.exemplo/" in pdf

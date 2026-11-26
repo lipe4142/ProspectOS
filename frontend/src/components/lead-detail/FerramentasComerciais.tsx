@@ -24,6 +24,9 @@ export function FerramentasComerciais({ lead }: { lead: Lead }) {
   const [ocupado, setOcupado] = useState(false)
   const [pdfBaixado, setPdfBaixado] = useState(false)
   const [incluirDetalhes, setIncluirDetalhes] = useState(false)
+  const [instagramFlp, setInstagramFlp] = useState(() => {
+    try { return localStorage.getItem("flp-prospect.instagram-comercial") || "" } catch { return "" }
+  })
   const { copiar } = useClipboard()
   const [proposta, setProposta] = useState<Proposta>({
     cliente: lead.nome,
@@ -64,7 +67,7 @@ export function FerramentasComerciais({ lead }: { lead: Lead }) {
     setOcupado(true)
     try {
       const resposta = await fetch(endpoint + "/proposta.pdf", { method: "POST",
-        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...proposta, incluir_detalhes: incluirDetalhes }) })
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...proposta, incluir_detalhes: incluirDetalhes, instagram_flp: instagramFlp }) })
       if (!resposta.ok) {
         const erro = await resposta.json().catch(() => ({}))
         throw new Error(erro.erro || "Não foi possível gerar o PDF.")
@@ -145,6 +148,16 @@ export function FerramentasComerciais({ lead }: { lead: Lead }) {
         <img src="/flp-systems-light.svg" alt="FLP Systems" className="h-10 max-w-full object-contain dark:hidden" />
         <img src="/flp-systems-dark.svg" alt="FLP Systems" className="hidden h-10 max-w-full object-contain dark:block" />
         <p className="text-xs text-muted-foreground">Valores sugeridos são editáveis. Confirme escopo, valores e prazos antes de enviar.</p>
+        <label className="block space-y-1 text-sm">
+          <span className="font-medium">Instagram da FLP Systems (QR Code)</span>
+          <Input disabled={ocupado} value={instagramFlp} maxLength={200} placeholder="@perfil ou link do Instagram" onChange={e => {
+            const valor = e.target.value
+            setInstagramFlp(valor)
+            setPdfBaixado(false)
+            try { localStorage.setItem("flp-prospect.instagram-comercial", valor) } catch { /* mantém valor nesta sessão */ }
+          }} />
+          <span className="block text-xs text-muted-foreground">Salvo neste navegador. Se vazio, o PDF não exibirá QR Code. Use o perfil da FLP, não o do lead.</span>
+        </label>
         <label className="flex items-start gap-2 rounded-lg border border-border p-3 text-sm"><input type="checkbox" checked={incluirDetalhes} disabled={ocupado} onChange={e => { setIncluirDetalhes(e.target.checked); setPdfBaixado(false) }} /><span><strong>Incluir anexo com detalhes do projeto</strong><br /><span className="text-xs text-muted-foreground">Desmarcado: proposta visual compacta conforme o modelo FLP. Marcado: inclui objetivo, benefícios, etapas, mensalidade e condições adicionais.</span></span></label>
         {grupos.map(grupo => <fieldset key={grupo.titulo} className="space-y-3 rounded-lg border border-border p-3">
           <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-primary">{grupo.titulo}</legend>
