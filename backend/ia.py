@@ -14,6 +14,7 @@ Arquitetura dos prompts:
 import json
 import logging
 import random
+import re
 import time
 from datetime import datetime
 
@@ -433,6 +434,20 @@ Orientações desta mensagem:
 """
 
 
+def copy_contato_tem_alegacao_arriscada(mensagem):
+    """Detecta alegações de falta e propostas de adicionar canais não verificadas."""
+    texto = str(mensagem or "").lower()
+    canal = r"(?:whats\s*app|telefone|e-?mail|bot(?:ão|ao|ões|oes)|formul[aá]rio|canal(?:is)? de contato)"
+    falta = r"(?:n[aã]o\s+(?:tem|t[eê]m|possui|possuem|encontrei|localizei|vi|identifiquei|oferece|conta\s+com|est[aá]|h[aá])|sem|falta(?:m|ndo)?|aus[eê]ncia|inexistente|adicionar|incluir|integrar|colocar|implementar)"
+    for trecho in re.split(r"[.!?;\n]+", texto):
+        if re.search(canal, trecho) and re.search(falta, trecho):
+            # "sem compromisso" é uma condição comercial, não falta de canal.
+            limpo = re.sub(r"\bsem\s+(?:compromisso|custo|obriga[cç][aã]o)", "", trecho)
+            if re.search(falta, limpo):
+                return True
+    return False
+
+
 def gerar_mensagem_com_fallback(nome, categoria, endereco, nota, tipo="contato", follow_ups_enviados=0,
                                 site_status=None, site_problemas=None, num_avaliacoes=None,
                                 cidade=None, instagram_url=None, mensagem_anterior=None,
@@ -452,9 +467,20 @@ def gerar_mensagem_com_fallback(nome, categoria, endereco, nota, tipo="contato",
         )
 
     try:
-        return executar_com_fallback(
+        mensagem, provedor, avisos = executar_com_fallback(
             montar_system_copywriter("WhatsApp"), user, descricao_log="gerar mensagem"
         )
+        # Defesa adicional: nem o melhor prompt garante que a IA não invente
+        # ausência de canais. Bloqueia alegações de falta em contato inicial.
+        if tipo == "contato" and copy_contato_tem_alegacao_arriscada(mensagem):
+            mensagem = (
+                f"{saudacao_por_horario()}, {nome}! Trabalho com criação de sites na FLP Systems. "
+                "Posso preparar uma prévia gratuita e sem compromisso de um site moderno, "
+                "personalizado para o negócio de vocês, para mostrar possibilidades de visual "
+                "e navegação?"
+            )
+            avisos = list(avisos or []) + ["Copy ajustada para evitar afirmação de contato não verificada."]
+        return mensagem, provedor, avisos
     except NenhumProvedorDisponivel as excecao:
         if excecao.erro_final is None:
             raise RuntimeError(
