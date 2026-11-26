@@ -16,6 +16,7 @@ import re
 import sqlite3
 import sys
 import time
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime
 from pathlib import Path
@@ -43,27 +44,57 @@ DOMINIOS_IGNORADOS = {
     "chavesnamao.com.br", "quintoandar.com.br", "nestoria.com.br",
     "empresas.serasaexperian.com.br", "econodata.com.br", "cnpj.biz",
     "google.com", "google.com.br", "maps.google.com",
-    "wikipedia.org", "linktr.ee",
+    "wikipedia.org", "linktr.ee", "wa.me", "whatsapp.com", "beacons.ai", "bio.link",
+    "linkbio.co", "allmylinks.com", "campsite.bio", "bit.ly", "tinyurl.com",
+    "guiamais.com.br", "telelistas.net", "solutudo.com.br", "apontador.com.br",
+    "doctoralia.com.br", "jusbrasil.com.br", "reclameaqui.com.br",
+    "ifood.com.br", "rappi.com.br", "tripadvisor.com.br", "booking.com",
+    "mercadolivre.com.br", "shopee.com.br", "facebook.net", "maps.app.goo.gl",
+    "goo.gl", "g.page", "negocio.site", "business.site", "gov.br",
 }
 
 
-def dominio_e_proprio(url):
-    """True se a URL parece ser o site oficial da própria empresa (não rede social/agregador)."""
-    if not url:
-        return False
-
+def _host_site(url):
     try:
-        host = urlparse(url).netloc.lower()
-    except ValueError:
-        return False
+        texto = (url or "").strip()
+        if not texto or ("://" in texto and not texto.lower().startswith(("http://", "https://"))):
+            return ""
+        partes = urlparse(texto if "://" in texto else "https://" + texto)
+        if partes.username or partes.password:
+            return ""
+        host = (partes.hostname or "").lower().rstrip(".").removeprefix("www.")
+        return host if "." in host and not any(c.isspace() for c in host) else ""
+    except (ValueError, TypeError):
+        return ""
 
-    host = host.removeprefix("www.")
+
+def dominio_e_proprio(url):
+    """URL candidata a site institucional, não prova de titularidade do domínio."""
+    host = _host_site(url)
     if not host:
         return False
-
-    # bate tanto o domínio exato ("facebook.com") quanto qualquer subdomínio dele
-    # ("blog.facebook.com", "m.facebook.com") - antes só pegava a igualdade exata
+    if host == "sites.google.com":
+        return True  # site hospedado, não confundir com busca/perfil do Google
     return not any(host == ignorado or host.endswith("." + ignorado) for ignorado in DOMINIOS_IGNORADOS)
+
+
+def _normalizar_identidade(texto):
+    texto = unicodedata.normalize("NFKD", str(texto or "").lower())
+    return " ".join(re.findall(r"[a-z0-9]+", "".join(c for c in texto if not unicodedata.combining(c))))
+
+
+def resultado_corresponde_empresa(nome, resultado):
+    """Filtro conservador de busca: nome comercial no título ou no domínio.
+    Diretórios conhecidos são descartados antes. Não prova propriedade jurídica."""
+    nome_normal = _normalizar_identidade(nome)
+    if not nome_normal:
+        return False
+    titulo = _normalizar_identidade(resultado.get("title"))
+    host = _normalizar_identidade(_host_site(resultado.get("href")))
+    nome_compacto = nome_normal.replace(" ", "")
+    if len(nome_compacto) >= 4 and nome_compacto in host.replace(" ", ""):
+        return True
+    return len(nome_compacto) >= 4 and (" " + nome_normal + " ") in (" " + titulo + " ")
 
 
 BUSCA_BACKENDS = "duckduckgo,bing,yahoo"
@@ -106,9 +137,10 @@ CONSTRUTORES_POR_HTML = {
 
 def detectar_construtor_generico(url_final, html):
     """Retorna o nome do construtor genérico (Wix, Canva...) ou None."""
-    url_minuscula = (url_final or "").lower()
+    host = _host_site(url_final)
     for assinatura, nome in CONSTRUTORES_POR_URL.items():
-        if assinatura in url_minuscula:
+        dominio = assinatura.lstrip(".")
+        if host == dominio or host.endswith("." + dominio):
             return nome
 
     html_minusculo = (html or "").lower()
@@ -217,6 +249,9 @@ def avaliar_site_completo(url):
             time.sleep(1)
             return requisitar(url_alvo, verify)
 
+    if not dominio_e_proprio(url):
+        return "sem_site", [], None
+
     problemas = []
     dominio_morto = False
     tinha_esquema = url.lower().startswith(("http://", "https://"))
@@ -253,6 +288,23 @@ def avaliar_site_completo(url):
         )
         return "ruim", problemas + [motivo], None
 
+    if not dominio_e_proprio(resposta.url):
+        return "sem_site", [], None
+
+    # Um endereço cadastrado em HTTP pode ter HTTPS disponível, sem redirecionar.
+    https_disponivel = False
+    if resposta.url.lower().startswith("http://"):
+        try:
+            alternativa = requisitar("https://" + resposta.url[7:])
+            https_disponivel = (
+                alternativa.url.lower().startswith("https://")
+                and dominio_e_proprio(alternativa.url)
+                and _host_site(alternativa.url) == _host_site(resposta.url)
+                and alternativa.status_code < 400
+            )
+        except RequestException:
+            pass
+
     if resposta.status_code >= 400:
         problemas.append(f"site responde com erro (HTTP {resposta.status_code})")
 
@@ -267,7 +319,7 @@ def avaliar_site_completo(url):
     url_final = resposta.url.lower()
 
     if url_final.startswith("http://"):
-        problemas.append("sem HTTPS (aparece como 'não seguro' no navegador)")
+        problemas.append("HTTPS disponível, mas endereço HTTP sem redirecionamento seguro" if https_disponivel else "sem HTTPS (conexão não criptografada)")
     elif url_final.startswith("https://") and REGEX_RECURSO_HTTP.search(html):
         problemas.append("página segura carregando itens inseguros (conteúdo misto)")
 
@@ -281,6 +333,23 @@ def avaliar_site_completo(url):
         problemas.append(f"feito em construtor pronto ({construtor})")
 
     checklist, ano_copyright = montar_checklist_site(html, url_final)
+    host_final = _host_site(url_final)
+    hospedado = any(
+        host_final == dominio or host_final.endswith("." + dominio)
+        for dominio in ("wixsite.com", "sites.google.com", "canva.site", "wordpress.com",
+                        "webnode.page", "site123.me", "lojaintegrada.com.br",
+                        "vercel.app", "pages.dev", "netlify.app", "github.io", "blogspot.com")
+    )
+    checklist["tipo_endereco"] = "plataforma" if hospedado else "dominio_aparente"
+    checklist["url_final"] = resposta.url
+    checklist["seguranca"] = (
+        "certificado_invalido" if any("SSL" in p for p in problemas)
+        else "http_com_https" if https_disponivel
+        else "http" if url_final.startswith("http://")
+        else "misto" if REGEX_RECURSO_HTTP.search(html)
+        else "https" if url_final.startswith("https://")
+        else "indeterminada"
+    )
 
     ano_atual = date.today().year
     if ano_copyright and ano_copyright <= ano_atual - 2:
@@ -414,7 +483,7 @@ def buscar_site_da_empresa(nome, cidade_ou_endereco=""):
 
     for resultado in resultados:
         url = resultado.get("href")
-        if url and dominio_e_proprio(url):
+        if url and dominio_e_proprio(url) and resultado_corresponde_empresa(nome, resultado):
             return url
 
     return None
@@ -831,6 +900,23 @@ def numero_seguro(valor_bruto, conversor, padrao=0):
             return padrao
 
 
+def verificar_site_empresa(nome, endereco, url_inicial=None):
+    """Valida também o link do Maps e o destino de redirecionamentos.
+    Se for terceiro, procura uma alternativa antes de classificar sem site encontrado."""
+    url_inicial = (url_inicial or "").strip()
+    if dominio_e_proprio(url_inicial):
+        situacao, problemas, checklist = avaliar_site_completo(url_inicial)
+        if situacao != "sem_site":
+            return url_inicial, situacao, problemas, checklist
+
+    alternativa = buscar_site_da_empresa(nome, endereco)
+    if dominio_e_proprio(alternativa) and alternativa != url_inicial:
+        situacao, problemas, checklist = avaliar_site_completo(alternativa)
+        if situacao != "sem_site":
+            return alternativa, situacao, problemas, checklist
+    return None, "sem_site", [], None
+
+
 def _verificar_candidata(indice, linha):
     """Roda numa thread do pool: só a parte de rede, sem tocar no banco.
     1. descobre o site (campo do Maps, ou busca web se o Maps não tiver);
@@ -839,12 +925,9 @@ def _verificar_candidata(indice, linha):
     nome_empresa = linha.get("title") or ""
     endereco = linha.get("address") or ""
 
-    site_url = (linha.get("website") or "").strip() or buscar_site_da_empresa(nome_empresa, endereco)
-
-    if site_url:
-        situacao, problemas, checklist = avaliar_site_completo(site_url)
-    else:
-        situacao, problemas, checklist = "sem_site", [], None
+    site_url, situacao, problemas, checklist = verificar_site_empresa(
+        nome_empresa, endereco, linha.get("website")
+    )
 
     instagram_url = buscar_instagram_da_empresa(nome_empresa, endereco) if situacao != "ok" else None
 
