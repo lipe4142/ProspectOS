@@ -26,8 +26,7 @@ import { useLeadMutations } from "@/hooks/useLeadMutations"
 import { tocarSom } from "@/hooks/useSom"
 import { montarEstrategia } from "@/lib/estrategia"
 import { formatarNota } from "@/lib/formatters"
-import { linkWhatsappComMensagem } from "@/services/tarefasService"
-import { conversaService } from "@/services/conversaService"
+import { abrirWhatsappInstalado } from "@/services/tarefasService"
 import { httpClient } from "@/services/httpClient"
 import { useInvalidarLeads } from "@/hooks/useInvalidarLeads"
 import { toast } from "sonner"
@@ -62,9 +61,12 @@ function CartaoDaSessao({
 
   const abrirWhatsappEContatar = () => {
     if (!lead.whatsapp_link) return
-    conversaService.registrarLeadAtivo("maps", lead.place_id).catch(() => {})
-    window.open(linkWhatsappComMensagem(lead.whatsapp_link, mensagem || null), "_blank")
-    setAbriuWhatsapp(true)
+    try {
+      abrirWhatsappInstalado(lead.whatsapp_link, mensagem || null)
+      setAbriuWhatsapp(true)
+    } catch (erro) {
+      toast.error(erro instanceof Error ? erro.message : "Não foi possível abrir o WhatsApp.")
+    }
   }
 
   // Atalhos: Enter = abrir WhatsApp · → = pular · Backspace = ignorar.
@@ -194,9 +196,7 @@ function CartaoDaSessao({
       {abriuWhatsapp && (
         <div className="space-y-2 rounded-lg border border-border p-3">
           <p className="text-xs text-muted-foreground">
-            {modo === "novo" && window.prospectOS?.desktop
-              ? "Aguardando confirmação automática do envio. Se a captura não funcionar, confirme manualmente."
-              : "Após enviar a mensagem no WhatsApp, confirme o envio aqui."}
+            Após enviar a mensagem no WhatsApp instalado, confirme o envio aqui.
           </p>
           <Button variant="outline" onClick={onContatado}>
             <Check className="size-4" />
