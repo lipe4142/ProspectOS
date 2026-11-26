@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import { BrowserRouter, Route, Routes } from "react-router-dom"
 import { QueryClientProvider } from "@tanstack/react-query"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -16,9 +17,23 @@ import { InstagramArquivadosPage } from "@/pages/InstagramArquivadosPage"
 import { ConfiguracoesPage } from "@/pages/ConfiguracoesPage"
 import { DocumentacaoPage } from "@/pages/DocumentacaoPage"
 
+function SincronizarContatoWhatsapp() {
+  useEffect(() => {
+    const ponte = window.prospectOS
+    if (!ponte?.aoReceber) return
+    return ponte.aoReceber("cockpit:mensagens-novas", () => {
+      for (const chave of ["leads", "lead", "metricas", "metricas-combinadas", "follow-ups-hoje", "meta-semanal", "tarefas-hoje"]) {
+        queryClient.invalidateQueries({ queryKey: [chave] })
+      }
+    })
+  }, [])
+  return null
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <SincronizarContatoWhatsapp />
       <TooltipProvider>
         <BrowserRouter>
           <PaletaComando />
