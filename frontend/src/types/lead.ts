@@ -44,6 +44,8 @@ export interface Lead {
   site_checklist: {
     tem: string[]
     falta: string[]
+    nao_confirmado?: string[]
+    analise_renderizada?: boolean
     seguranca?: "https" | "http" | "http_com_https" | "certificado_invalido" | "misto" | "indeterminada"
     tipo_endereco?: "plataforma" | "dominio_aparente"
     url_final?: string
