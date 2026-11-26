@@ -12,7 +12,7 @@ import { StatusCaptura } from "@/components/conversa/StatusCaptura"
 import { ThreadConversa } from "@/components/conversa/ThreadConversa"
 import { httpClient } from "@/services/httpClient"
 import { conversaService } from "@/services/conversaService"
-import { linkWhatsappComMensagem } from "@/services/tarefasService"
+import { abrirWhatsappInstalado } from "@/services/tarefasService"
 import { useClipboard } from "@/hooks/useClipboard"
 import {
   useConversa,
@@ -56,8 +56,11 @@ export function ConversaPage() {
       toast.error("Este lead não tem WhatsApp cadastrado.")
       return
     }
-    conversaService.registrarLeadAtivo(CANAL, placeId).catch(() => {})
-    window.open(linkWhatsappComMensagem(lead.whatsapp_link, rascunho || null), "_blank")
+    try {
+      abrirWhatsappInstalado(lead.whatsapp_link, rascunho || null)
+    } catch (erro) {
+      toast.error(erro instanceof Error ? erro.message : "Não foi possível abrir o WhatsApp.")
+    }
   }
 
   const registrarNoHistorico = () => {
