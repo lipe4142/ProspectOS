@@ -508,22 +508,33 @@ def gerar_mensagem(place_id):
         if tipo == "contato" and lead["mensagem_gerada"] and not forcar_nova:
             return jsonify({"mensagem": lead["mensagem_gerada"], "cache": True})
 
-        # lead com site: captura o conteúdo real pra copy citar um detalhe específico,
-        # e anexa o raio-X (tem/falta) já salvo na busca
+        # Nunca usar o raio-X antigo como prova de ausência de recursos.
         conteudo_site = None
+        status_copy = lead["site_status"]
+        problemas_copy = lead["site_problemas"]
         if tipo == "contato" and lead["site_url"]:
-            conteudo_site = processar.capturar_conteudo_site(lead["site_url"])
+            status_copy, problemas_copy = None, None
             try:
-                checklist = json.loads(lead["site_checklist"]) if lead["site_checklist"] else None
-            except (TypeError, ValueError):
-                checklist = None
-            if checklist and checklist.get("falta"):
-                resumo_raio_x = (
-                    "Raio-X do site (dados reais): TEM "
-                    + (", ".join(checklist.get("tem", [])) or "quase nada")
-                    + "; FALTA " + ", ".join(checklist["falta"]) + "."
-                )
-                conteudo_site = f"{conteudo_site}\n{resumo_raio_x}" if conteudo_site else resumo_raio_x
+                situacao, problemas, checklist = processar.avaliar_site_completo(lead["site_url"])
+                if checklist is not None and situacao != "sem_site":
+                    status_copy = "site_ok" if situacao == "ok" else "site_ruim"
+                    problemas_copy = "; ".join(problemas) or None
+                    checklist = processar.complementar_checklist_contatos(
+                        checklist.get("url_final") or lead["site_url"], checklist
+                    )
+                    conteudo_site = processar.capturar_conteudo_site(lead["site_url"])
+                    resumo_raio_x = (
+                        "Recursos detectados (não prova funcionamento completo): "
+                        + (", ".join(checklist.get("tem", [])) or "nenhum confirmado")
+                        + ". Recursos não detectados ou inconclusivos: "
+                        + (", ".join(checklist.get("falta", []) + checklist.get("nao_confirmado", [])) or "nenhum")
+                        + ". Nunca descreva recursos inconclusivos como ausentes. "
+                        "Telefone e e-mail são opcionais quando o negócio centraliza atendimento no WhatsApp."
+                    )
+                    conteudo_site = f"{conteudo_site or ''}\n{resumo_raio_x}"
+            except Exception:
+                logger.warning("Verificação atual do site inconclusiva", exc_info=True)
+                status_copy, problemas_copy, conteudo_site = None, None, None
 
         try:
             mensagem, provedor_usado, avisos = ia.gerar_mensagem_com_fallback(
@@ -533,8 +544,8 @@ def gerar_mensagem(place_id):
                 nota=lead["nota"],
                 tipo=tipo,
                 follow_ups_enviados=lead["follow_ups_enviados"] or 0,
-                site_status=lead["site_status"],
-                site_problemas=lead["site_problemas"],
+                site_status=status_copy,
+                site_problemas=problemas_copy,
                 num_avaliacoes=lead["num_avaliacoes"],
                 cidade=lead["cidade"],
                 instagram_url=lead["instagram_url"],
@@ -664,6 +675,7 @@ def reanalisar_site(place_id):
     # IA apenas traduz os resultados; a situação e a segurança vêm da checagem real.
     # Só na reanálise solicitada, para não consumir cotas em buscas em lote.
     if checklist is not None:
+        checklist = processar.complementar_checklist_contatos(checklist.get("url_final") or site_url, checklist)
         resumo = ia.resumir_diagnostico_site(lead["nome"], situacao, problemas, checklist)
         if resumo:
             checklist["resumo_ia"] = resumo
