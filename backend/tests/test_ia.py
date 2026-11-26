@@ -464,3 +464,23 @@ class TestTraduzirErro:
 
     def test_erro_desconhecido_vira_mensagem_generica(self):
         assert "erro inesperado" in ia.traduzir_erro_ia(Exception("algo estranho"))
+
+
+def test_resumo_diagnostico_usa_fatos_e_provedor_configurado(monkeypatch):
+    capturado = {}
+
+    def fake(system, user, temperatura=None, formato_json=False):
+        capturado["system"] = system
+        capturado["user"] = user
+        return "A conexão atual não é criptografada."
+
+    configurar_provedores(monkeypatch, gemini=fake)
+    resumo = ia.resumir_diagnostico_site("Empresa", "ruim", ["sem HTTPS"], {"seguranca": "http"})
+    assert resumo == "A conexão atual não é criptografada."
+    assert "sem HTTPS" in capturado["user"]
+    assert "não segurança total" in capturado["system"]
+
+
+def test_resumo_diagnostico_sem_provedores_nao_bloqueia(monkeypatch):
+    monkeypatch.setattr(db, "obter_config", lambda chave, default=None: default)
+    assert ia.resumir_diagnostico_site("Empresa", "ok", [], {"seguranca": "https"}) is None
