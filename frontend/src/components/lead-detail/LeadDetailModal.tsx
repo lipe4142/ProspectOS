@@ -6,6 +6,8 @@ import {
 } from "@/components/ui/dialog"
 import { ExternalLink, FileDown, Flame, MessagesSquare, RefreshCw } from "lucide-react"
 import { Link } from "react-router-dom"
+import { useQuery } from "@tanstack/react-query"
+import { httpClient } from "@/services/httpClient"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useLeadMutations } from "@/hooks/useLeadMutations"
@@ -27,8 +29,16 @@ interface LeadDetailModalProps {
   onClose: () => void
 }
 
-export function LeadDetailModal({ lead, onClose }: LeadDetailModalProps) {
-  const mutations = useLeadMutations(lead?.place_id ?? "")
+export function LeadDetailModal({ lead: snapshot, onClose }: LeadDetailModalProps) {
+  const placeId = snapshot?.place_id ?? ""
+  const { data: atualizado } = useQuery({
+    queryKey: ["lead", placeId],
+    queryFn: () => httpClient.get<Lead>(`/api/leads/${encodeURIComponent(placeId)}`),
+    enabled: Boolean(placeId),
+    refetchOnWindowFocus: true,
+  })
+  const lead = atualizado ?? snapshot
+  const mutations = useLeadMutations(placeId)
 
   if (!lead) return null
 
