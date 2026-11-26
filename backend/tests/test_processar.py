@@ -335,8 +335,8 @@ class TestChecklistDoSite:
     def test_site_pelado_falta_quase_tudo(self):
         html = "<html><head><title>Home</title></head><body><p>oi</p></body></html>"
         checklist, _ano = processar.montar_checklist_site(html, "https://x.com.br/")
-        assert "botão de WhatsApp" in checklist["falta"]
-        assert "telefone clicável" in checklist["falta"]
+        assert "botão de WhatsApp" in checklist["nao_confirmado"]
+        assert "telefone clicável" in checklist["nao_confirmado"]
         assert "fotos do negócio" in checklist["falta"]
         assert "título descritivo na aba" in checklist["falta"]  # "Home" não conta
         assert "descrição para aparecer no Google" in checklist["falta"]
@@ -733,3 +733,25 @@ class TestDiagnosticoConfiavel:
         assert any("disponibilidade não confirmada" in problema for problema in problemas)
         assert not any("fora do ar" in problema for problema in problemas)
         assert checklist["falta"] == []
+
+
+def test_widget_whatsapp_fora_do_inicio_do_html():
+    html = "<html><body>" + " " * 210000 + '<div class="whatsapp-floating"></div></body></html>'
+    checklist, _ = processar.montar_checklist_site(html, "https://empresa.com.br")
+    assert "botão de WhatsApp" in checklist["tem"]
+    assert "botão de WhatsApp" not in checklist["nao_confirmado"]
+    assert "telefone clicável" in checklist["nao_confirmado"]
+
+
+def test_mencao_textual_whatsapp_nao_confirma_botao():
+    checklist, _ = processar.montar_checklist_site(
+        "<p>Recebi informações pelo WhatsApp.</p>", "https://empresa.com.br")
+    assert "botão de WhatsApp" in checklist["nao_confirmado"]
+    assert "botão de WhatsApp" not in checklist["falta"]
+
+
+def test_whatsapp_link_dinamico_e_atributos():
+    html = r'<script>config={"whatsapp":"+5598999999999"}</script><a href = "tel:+5598999999999">Ligar</a>'
+    contatos = processar.detectar_contatos_site(html)
+    assert contatos["botão de WhatsApp"]
+    assert contatos["telefone clicável"]
