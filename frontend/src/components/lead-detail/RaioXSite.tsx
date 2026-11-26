@@ -1,4 +1,4 @@
-import { Check, ScanSearch, X } from "lucide-react"
+import { Check, ScanSearch, ShieldCheck, ShieldAlert, X } from "lucide-react"
 import type { Lead } from "@/types/lead"
 
 interface RaioXSiteProps {
@@ -8,12 +8,34 @@ interface RaioXSiteProps {
 /** Raio-X do site do lead: o que a página realmente tem e o que falta -
  * extraído do HTML na busca, nada é chute. São os ganchos concretos da venda. */
 export function RaioXSite({ checklist }: RaioXSiteProps) {
+  const seguranca = checklist.seguranca
+  const resumo = {
+    https: "Conexão protegida (HTTPS)",
+    http: "Conexão não segura (HTTP)",
+    http_com_https: "HTTPS disponível, mas o link HTTP não redireciona",
+    certificado_invalido: "Conexão com problema no certificado",
+    misto: "HTTPS com recursos não protegidos",
+    indeterminada: "Segurança não confirmada",
+  } as const
   return (
     <div className="space-y-2 rounded-xl border border-border bg-card p-4">
       <h3 className="flex items-center gap-1.5 text-sm font-semibold">
         <ScanSearch className="size-4 text-primary" />
         Raio-X do site atual
       </h3>
+      {seguranca && (
+        <div className="space-y-1 rounded-lg border border-border p-3 text-xs">
+          <p className={seguranca === "https" ? "flex items-center gap-2 font-semibold text-success" : "flex items-center gap-2 font-semibold text-warning"}>
+            {seguranca === "https" ? <ShieldCheck className="size-4" /> : <ShieldAlert className="size-4" />}
+            {resumo[seguranca]}
+          </p>
+          <p className="text-muted-foreground">A verificação avalia a proteção da conexão, não a segurança completa do site.</p>
+          {checklist.tipo_endereco && (
+            <p>{checklist.tipo_endereco === "plataforma" ? "Endereço hospedado em plataforma de terceiros" : "Domínio personalizado aparente (titularidade não verificada)"}</p>
+          )}
+          {checklist.url_final && <p className="break-all text-muted-foreground">Destino: {checklist.url_final}</p>}
+        </div>
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-success">
