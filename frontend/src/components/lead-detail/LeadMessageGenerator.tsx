@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Copy, MessageCircle, MessageCircleReply, Sparkles } from "lucide-react"
+import { CheckCircle2, Copy, MessageCircle, MessageCircleReply, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -9,6 +9,9 @@ import { useClipboard } from "@/hooks/useClipboard"
 import { ajustarSaudacao } from "@/lib/saudacao"
 import { formatarTempoRelativo } from "@/lib/formatters"
 import { linkWhatsappComMensagem } from "@/services/tarefasService"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useInvalidarLeads } from "@/hooks/useInvalidarLeads"
+import { httpClient } from "@/services/httpClient"
 import { conversaService } from "@/services/conversaService"
 import type { UseMutationResult } from "@tanstack/react-query"
 import type { GerarMensagemResposta, Lead } from "@/types/lead"
@@ -39,6 +42,20 @@ export function LeadMessageGenerator({
   marcarFollowupEnviado,
 }: LeadMessageGeneratorProps) {
   const [mensagem, setMensagem] = useState(lead.mensagem_gerada ?? "")
+  const queryClient = useQueryClient()
+  const invalidarLeads = useInvalidarLeads()
+  const jaContatado = ["contatado", "respondeu", "fechou", "recusou"].includes(lead.status)
+  const confirmarContato = useMutation({
+    mutationFn: () => httpClient.post<{ ok: true; alterado: boolean }>(
+      `/api/conversa/maps/${encodeURIComponent(lead.place_id)}/confirmar-contato`
+    ),
+    onSuccess: () => {
+      invalidarLeads()
+      queryClient.invalidateQueries({ queryKey: ["lead", lead.place_id] })
+      toast.success("Contato registrado no CRM.")
+    },
+    onError: (erro: Error) => toast.error(erro.message),
+  })
 
   useEffect(() => {
     setMensagem(lead.mensagem_gerada ?? "")
@@ -51,6 +68,8 @@ export function LeadMessageGenerator({
   } = useClipboard()
 
   const handleGerar = (tipo: "contato" | "followup") => {
+    if (tipo === "contato" && jaContatado &&
+        !window.confirm("Este lead já foi contatado. Gerar outra mensagem de primeiro contato mesmo assim?")) return
     const jaTinhaMensagem = mensagem.trim().length > 0
     gerarMensagem.mutate(
       { forcarNova: jaTinhaMensagem, tipo },
@@ -72,6 +91,12 @@ export function LeadMessageGenerator({
   return (
     <div className="flex flex-1 flex-col gap-2">
       <Label>Mensagem de abordagem (gerada por IA)</Label>
+      {jaContatado && (
+        <p className="flex items-center gap-2 rounded-md border border-success/40 p-2 text-sm text-success">
+          <CheckCircle2 className="size-4 shrink-0" />
+          Lead já contatado. Prefira um follow-up para não repetir a abordagem.
+        </p>
+      )}
       <Textarea
         value={mensagem}
         onChange={(e) => setMensagem(e.target.value)}
@@ -124,6 +149,14 @@ export function LeadMessageGenerator({
           >
             <MessageCircle className="size-4" />
             Abrir WhatsApp
+          </Button>
+        )}
+        {lead.status === "novo" && (
+          <Button size="sm" variant="outline"
+            disabled={confirmarContato.isPending}
+            onClick={() => confirmarContato.mutate()}>
+            <CheckCircle2 className="size-4" />
+            Confirmar que enviei
           </Button>
         )}
       </div>
