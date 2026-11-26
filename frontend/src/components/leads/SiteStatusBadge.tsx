@@ -16,7 +16,7 @@ export function SiteStatusBadge({ siteStatus, siteProblemas }: SiteStatusBadgePr
         title={siteProblemas ?? undefined}
       >
         <Globe className="size-3" />
-        Site ruim
+        Site a revisar
       </Badge>
     )
   }
@@ -35,7 +35,7 @@ export function SiteStatusBadge({ siteStatus, siteProblemas }: SiteStatusBadgePr
   return (
     <Badge variant="outline" className="bg-muted text-muted-foreground">
       <GlobeLock className="size-3" />
-      Sem site
+      Site não encontrado
     </Badge>
   )
 }
