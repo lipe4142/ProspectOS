@@ -176,6 +176,109 @@ REGEX_CEP = re.compile(r"\b\d{5}-\d{3}\b")
 REGEX_ANO_COPYRIGHT = re.compile(r"(?:©|&copy;|copyright)\D{0,20}(20\d{2})", re.IGNORECASE)
 
 
+# Contatos podem ser injetados depois do carregamento por JS/iframes.
+# Ausência no HTML não prova ausência no site, nem que o contato é obrigatório.
+CONTATOS_SITE = ("botão de WhatsApp", "telefone clicável", "e-mail de contato")
+REGEX_WHATSAPP_LINK = re.compile(
+    r"(?:wa\.me/|(?:api|web)\.whatsapp\.com/send|whatsapp://send|"
+    r"chat\.whatsapp\.com/)", re.I
+)
+REGEX_WHATSAPP_WIDGET = re.compile(
+    r"joinchat|join\.chat|click[-_ ]?to[-_ ]?chat|"
+    r"whatsapp[-_ ]?(?:chat|button|widget|float|floating|contact)|"
+    r"(?:chat|button|widget|float|floating)[-_ ]?whatsapp|"
+    r"wa[-_](?:button|widget|chat)|whatshelp|whatsapp[-_ ]?social[-_ ]?chat",
+    re.I,
+)
+
+
+def detectar_contatos_site(html):
+    """Evidência de integração, não teste de envio ou funcionamento ponta a ponta."""
+    from html import unescape
+    html = unescape(html or "").replace(r"\/", "/").replace(r"\u002F", "/").replace(r"\u002f", "/")
+    # Textos de depoimentos, artigos e comentários não provam um botão.
+    html = re.sub(r"<!--.*?-->", "", html, flags=re.S)
+    interativos = re.findall(
+        r"<(?:a|button|iframe|script|div|span|svg|img|input|link)\b[^>]*>",
+        html, flags=re.I | re.S,
+    )
+    atributos = " ".join(interativos)
+    controles = re.findall(
+        r"<(?:a|button)\b[^>]*>.*?</(?:a|button)\s*>", html, flags=re.I | re.S
+    )
+    whatsapp = (
+        bool(REGEX_WHATSAPP_LINK.search(html))
+        or bool(REGEX_WHATSAPP_WIDGET.search(atributos))
+        or any(re.search(r"\bwhatsapp\b", controle, re.I) for controle in controles)
+        or bool(re.search(r'(?:aria-label|title|alt)\s*=\s*["\'][^"\']*whatsapp', atributos, re.I))
+        or bool(re.search(r'["\']whatsapp["\']\s*:\s*["\']?\+?\d[\d ()-]{7,}', html, re.I))
+    )
+    return {
+        "botão de WhatsApp": whatsapp,
+        "telefone clicável": bool(re.search(r'\b(?:href|data-href)\s*=\s*["\']?\s*tel:', atributos, re.I)),
+        "e-mail de contato": bool(re.search(r'\b(?:href|data-href)\s*=\s*["\']?\s*mailto:', atributos, re.I)),
+    }
+
+
+def complementar_checklist_contatos(url, checklist):
+    """Inspeção opcional do DOM renderizado (somente em análise individual).
+    Usa Edge/Chrome instalados ou Chromium do Playwright, sem clicar/enviar nada.
+    Falhas, bloqueios e widgets não encontrados continuam inconclusivos.
+    """
+    if not checklist or not dominio_e_proprio(url):
+        return checklist
+    checklist.setdefault("nao_confirmado", [])
+    for item in CONTATOS_SITE:
+        if item in checklist.get("falta", []):
+            checklist["falta"].remove(item)
+            if item not in checklist["nao_confirmado"]:
+                checklist["nao_confirmado"].append(item)
+    if all(item in checklist.get("tem", []) for item in CONTATOS_SITE):
+        return checklist
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as pw:
+            browser = None
+            for canal in ("msedge", "chrome", None):
+                try:
+                    opcoes = {"headless": True, "timeout": 5000}
+                    if canal:
+                        opcoes["channel"] = canal
+                    browser = pw.chromium.launch(**opcoes)
+                    break
+                except Exception:
+                    continue
+            if browser is None:
+                return checklist
+            try:
+                pagina = browser.new_page(viewport={"width": 1366, "height": 768},
+                                          accept_downloads=False)
+                pagina.goto(url if "://" in url else "https://" + url,
+                            wait_until="domcontentloaded", timeout=10000)
+                pagina.wait_for_timeout(2000)
+                if not dominio_e_proprio(pagina.url):
+                    return checklist
+                htmls = []
+                for frame in pagina.frames[:20]:
+                    try:
+                        htmls.append(frame.content())
+                    except Exception:
+                        continue
+                encontrados = detectar_contatos_site("\n".join(htmls))
+                for item, presente in encontrados.items():
+                    if presente:
+                        if item not in checklist["tem"]:
+                            checklist["tem"].append(item)
+                        if item in checklist["nao_confirmado"]:
+                            checklist["nao_confirmado"].remove(item)
+                checklist["analise_renderizada"] = True
+            finally:
+                browser.close()
+    except Exception:
+        logger.debug("Inspeção renderizada indisponível", exc_info=True)
+    return checklist
+
+
 def montar_checklist_site(html, url_final):
     """Raio-X do site com dados reais do HTML: o que o site TEM e o que FALTA
     para transformar visita em contato. Alimenta o modal do lead, o diagnóstico
@@ -190,10 +293,9 @@ def montar_checklist_site(html, url_final):
         html or "", re.IGNORECASE,
     )
 
+    contatos = detectar_contatos_site(html)
     itens = [
-        ("botão de WhatsApp", ("wa.me" in html_min or "api.whatsapp.com" in html_min or "whatsapp" in html_min)),
-        ("telefone clicável", 'href="tel:' in html_min or "href='tel:" in html_min),
-        ("e-mail de contato", "mailto:" in html_min),
+        *contatos.items(),
         ("link para redes sociais", "instagram.com" in html_min or "facebook.com" in html_min),
         ("endereço ou mapa", ("google.com/maps" in html_min or "maps.google" in html_min
                               or "<address" in html_min or bool(REGEX_CEP.search(html or "")))),
@@ -205,7 +307,8 @@ def montar_checklist_site(html, url_final):
 
     checklist = {
         "tem": [nome for nome, presente in itens if presente],
-        "falta": [nome for nome, presente in itens if not presente],
+        "falta": [nome for nome, presente in itens if not presente and nome not in CONTATOS_SITE],
+        "nao_confirmado": [nome for nome, presente in contatos.items() if not presente],
     }
 
     anos = [int(a) for a in REGEX_ANO_COPYRIGHT.findall(html or "")]
@@ -322,7 +425,7 @@ def avaliar_site_completo(url):
             f"site muito lento para responder ({tempo_resposta.total_seconds():.0f}s)"
         )
 
-    html = (resposta.text or "")[:200_000]
+    html = resposta.text or ""
     url_final = resposta.url.lower()
 
     if url_final.startswith("http://"):
