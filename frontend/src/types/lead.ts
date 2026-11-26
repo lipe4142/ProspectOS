@@ -47,6 +47,7 @@ export interface Lead {
     seguranca?: "https" | "http" | "http_com_https" | "certificado_invalido" | "misto" | "indeterminada"
     tipo_endereco?: "plataforma" | "dominio_aparente"
     url_final?: string
+    resumo_ia?: string
   } | null
   instagram_url: string | null
 }
