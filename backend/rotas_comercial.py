@@ -128,7 +128,7 @@ def demonstracao(place_id):
 
 
 def _limpar(texto):
-    return str(texto or "").encode("latin-1", "replace").decode("latin-1")
+    return str(texto or "").replace("•", "-").replace("–", "-").replace("—", "-").replace("’", "'").encode("latin-1", "replace").decode("latin-1")
 
 
 class PropostaPDF(FPDF):
@@ -157,53 +157,155 @@ class PropostaPDF(FPDF):
             self.set_xy(15, 19)
             self.set_font("Helvetica", "", 10)
             self.cell(180, 5, "software com precisão")
-        self.set_y(41)
+        self.set_xy(110, 10)
+        self.set_font("Helvetica", "B", 9)
+        self.set_text_color(255, 255, 255)
+        self.cell(85, 5, "PROPOSTA COMERCIAL", align="R")
+        self.set_xy(110, 17)
+        self.set_font("Helvetica", "", 9)
+        self.set_text_color(210, 210, 210)
+        self.cell(85, 5, "SOLUÇÕES DIGITAIS", align="R")
+        self.set_y(43)
 
     def footer(self):
-        self.set_y(-15)
-        self.set_font("Helvetica", "", 9)
-        self.set_text_color(95, 95, 95)
-        self.cell(0, 8, f"FLP Systems | Proposta comercial | {self.page_no()}", align="C")
+        self.set_y(-17)
+        self.set_draw_color(220, 220, 220)
+        self.line(15, self.get_y(), 195, self.get_y())
+        self.ln(3)
+        self.set_font("Helvetica", "", 8)
+        self.set_text_color(90, 90, 90)
+        self.cell(140, 5, "FLP Systems  |  software com precisão", link="https://flp-systems.vercel.app/")
+        self.cell(40, 5, f"{self.page_no():02d} / {{nb}}", align="R")
 
 
 def gerar_proposta_pdf(lead, dados):
     cliente = _texto(dados, "cliente", 200) or lead.get("nome") or "Cliente"
+    projeto = _texto(dados, "projeto", 200) or "Desenvolvimento de solução digital"
+    objetivo = _texto(dados, "objetivo")
     servicos = _texto(dados, "servicos")
+    beneficios = _texto(dados, "beneficios")
+    etapas = _texto(dados, "etapas")
     prazo = _texto(dados, "prazo", 200)
     pagamento = _texto(dados, "pagamento", 1500)
     validade = _texto(dados, "validade", 200)
+    recorrencia = _texto(dados, "recorrencia")
+    responsabilidades = _texto(dados, "responsabilidades")
+    limites = _texto(dados, "limites")
     observacoes = _texto(dados, "observacoes")
     inicial = _valor(dados, "inicial")
     mensal = _valor(dados, "mensal")
     if not all((servicos, prazo, pagamento, validade)):
         raise ValueError("Preencha serviços, prazo, pagamento e validade.")
+
     pdf = PropostaPDF()
-    pdf.set_margins(15, 15, 15)
-    pdf.set_auto_page_break(True, margin=20)
-    pdf.add_page()
-    pdf.set_text_color(9, 9, 9)
-    pdf.set_font("Helvetica", "B", 24)
-    pdf.multi_cell(0, 12, "Proposta comercial", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Helvetica", "", 11)
-    pdf.multi_cell(0, 7, _limpar(f"Preparada para: {cliente}\nEmissão: {date.today():%d/%m/%Y}\nValidade: {validade}"),
-                   new_x="LMARGIN", new_y="NEXT")
-    def secao(titulo, conteudo):
-        pdf.ln(5)
-        pdf.set_text_color(210, 75, 0)
-        pdf.set_font("Helvetica", "B", 13)
-        pdf.multi_cell(0, 8, _limpar(titulo), new_x="LMARGIN", new_y="NEXT")
-        pdf.set_text_color(20, 20, 20)
+    pdf.alias_nb_pages()
+    pdf.set_title(_limpar("Proposta comercial - " + cliente))
+    pdf.set_author("FLP Systems")
+    pdf.set_margins(15, 43, 15)
+    pdf.set_auto_page_break(True, margin=22)
+    preto = (9, 9, 9)
+    laranja = (255, 106, 0)
+    texto = (40, 40, 40)
+    cinza = (100, 100, 100)
+    claro = (247, 247, 247)
+
+    def paragrafo(conteudo, altura=5.5):
         pdf.set_font("Helvetica", "", 11)
-        pdf.multi_cell(0, 6, _limpar(conteudo), new_x="LMARGIN", new_y="NEXT")
-    secao("01 | Escopo e entregáveis", servicos)
-    secao("02 | Investimento", f"Valor inicial: {_brl(inicial)}\nMensalidade: {_brl(mensal)}")
-    secao("03 | Prazo de entrega", prazo)
-    secao("04 | Condições de pagamento", pagamento)
-    if observacoes:
-        secao("05 | Observações", observacoes)
+        pdf.set_text_color(*texto)
+        pdf.set_x(15)
+        pdf.multi_cell(180, altura, _limpar(conteudo), new_x="LMARGIN", new_y="NEXT")
+
+    def secao(numero, titulo, conteudo):
+        if not conteudo:
+            return
+        if pdf.will_page_break(22):
+            pdf.add_page()
+        pdf.ln(5)
+        y = pdf.get_y()
+        pdf.set_fill_color(*laranja)
+        pdf.rect(15, y + 1, 1.5, 6, "F")
+        pdf.set_xy(20, y)
+        pdf.set_font("Helvetica", "B", 13)
+        pdf.set_text_color(*preto)
+        pdf.cell(175, 8, _limpar(f"{numero}  |  {titulo}"), new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(1)
+        paragrafo(conteudo)
+
+    def titulo_pagina(rotulo, titulo, subtitulo):
+        pdf.set_text_color(190, 66, 0)
+        pdf.set_font("Helvetica", "B", 10)
+        pdf.cell(0, 6, _limpar(rotulo), new_x="LMARGIN", new_y="NEXT")
+        pdf.set_text_color(*preto)
+        pdf.set_font("Helvetica", "B", 25)
+        pdf.multi_cell(180, 11, _limpar(titulo), new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(1)
+        paragrafo(subtitulo)
+
+    pdf.add_page()
+    titulo_pagina("01 / APRESENTAÇÃO DO PROJETO", projeto,
+                  "Uma proposta personalizada para fortalecer a presença digital do seu negócio.")
     pdf.ln(5)
+    # Faixa de identificação dimensionada pelo texto, inclusive nomes longos.
+    pdf.set_fill_color(*claro)
+    pdf.set_font("Helvetica", "B", 15)
+    pdf.set_text_color(*preto)
+    pdf.multi_cell(180, 8, _limpar(cliente), fill=True, new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Helvetica", "", 10)
-    pdf.multi_cell(0, 6, "Proposta sujeita à aprovação das partes. Não constitui contrato.")
+    pdf.set_text_color(*cinza)
+    identificacao = f"Preparada para a empresa acima | Emissão: {date.today():%d/%m/%Y}\nValidade da proposta: {validade}"
+    pdf.multi_cell(180, 6, _limpar(identificacao), fill=True, new_x="LMARGIN", new_y="NEXT")
+    secao("01", "Objetivo do projeto", objetivo or "Desenvolver uma solução alinhada às necessidades da empresa e ao escopo comercial apresentado.")
+    secao("02", "Escopo e entregáveis", servicos)
+    secao("03", "Benefícios esperados", beneficios)
+    secao("04", "Como vamos trabalhar", etapas)
+
+    pdf.add_page()
+    titulo_pagina("02 / INVESTIMENTO E CONDIÇÕES", "Investimento no projeto",
+                  "Valores e condições para a execução do escopo apresentado.")
+    pdf.ln(7)
+    # Cards com área fixa, sem truncar valores monetários.
+    y = pdf.get_y()
+    for x, rotulo, valor, escuro in (
+        (15, "IMPLANTAÇÃO / VALOR INICIAL", inicial, False),
+        (108, "MENSALIDADE", mensal, True),
+    ):
+        pdf.set_fill_color(*(preto if escuro else claro))
+        pdf.rect(x, y, 87, 32, "F")
+        pdf.set_fill_color(*laranja)
+        pdf.rect(x, y, 87, 1.5, "F")
+        pdf.set_xy(x + 5, y + 5)
+        pdf.set_font("Helvetica", "B", 8)
+        pdf.set_text_color(*( (225, 225, 225) if escuro else cinza))
+        pdf.cell(77, 5, rotulo)
+        pdf.set_xy(x + 5, y + 13)
+        pdf.set_font("Helvetica", "B", 20)
+        pdf.set_text_color(*( (255, 255, 255) if escuro else preto))
+        valor_texto = _brl(valor)
+        if pdf.get_string_width(valor_texto) > 77:
+            pdf.set_font_size(16)
+        pdf.cell(77, 10, valor_texto)
+    pdf.set_xy(15, y + 37)
+    secao("05", "Prazo de entrega", prazo)
+    secao("06", "Condições de pagamento", pagamento)
+    secao("07", "O que a mensalidade contempla", recorrencia)
+    secao("08", "Responsabilidades e materiais", responsabilidades)
+    secao("09", "Limites do escopo e custos adicionais", limites)
+    secao("10", "Observações", observacoes)
+
+    if pdf.will_page_break(35):
+        pdf.add_page()
+    pdf.ln(6)
+    pdf.set_fill_color(*preto)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.multi_cell(180, 8, "  Vamos dar o próximo passo?", fill=True, new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 10)
+    pdf.multi_cell(180, 6, _limpar("  Confirme o escopo e os valores para alinharmos a contratação.\n  flp-systems.vercel.app"),
+                   fill=True, new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(4)
+    pdf.set_font("Helvetica", "", 9)
+    pdf.set_text_color(*cinza)
+    pdf.multi_cell(180, 5, "Esta proposta está sujeita à aprovação das partes e não substitui o contrato de prestação de serviços.", new_x="LMARGIN", new_y="NEXT")
     return bytes(pdf.output())
 
 

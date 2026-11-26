@@ -35,3 +35,18 @@ def test_demonstracao_sem_ia(monkeypatch):
     assert "Empresa Teste" in resposta.json["briefing"]
     assert "Venda de imóveis" in resposta.json["prompt"]
     assert resposta.json["provedor"] is None
+
+def test_proposta_completa_e_campos_longos():
+    dados = {
+        "cliente": "Empresa Exemplo", "projeto": "Site institucional",
+        "objetivo": "Apresentar soluções da empresa.", "servicos": "Site responsivo",
+        "beneficios": "Facilitar o contato.", "etapas": "Briefing e aprovação.",
+        "inicial": "800", "mensal": "90", "prazo": "7 dias",
+        "pagamento": "Conforme contratação", "validade": "7 dias",
+        "recorrencia": "Manutenção conforme plano.", "responsabilidades": "Enviar materiais.",
+        "limites": "Custos externos à parte.", "observacoes": "Detalhes do escopo.\n" * 120,
+    }
+    pdf = gerar_proposta_pdf({"nome": "Empresa Exemplo"}, dados)
+    assert pdf.startswith(b"%PDF")
+    with pytest.raises(ValueError):
+        gerar_proposta_pdf({}, {**dados, "objetivo": "x" * 4001})

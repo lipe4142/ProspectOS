@@ -9,7 +9,11 @@ import { toast } from "sonner"
 import type { Lead } from "@/types/lead"
 
 type Demonstracao = { briefing: string; prompt: string; provedor?: string | null; avisos?: string[] }
-type Proposta = { cliente: string; servicos: string; inicial: string; mensal: string; prazo: string; pagamento: string; validade: string; observacoes: string }
+type Proposta = {
+  cliente: string; projeto: string; objetivo: string; servicos: string; beneficios: string;
+  etapas: string; inicial: string; mensal: string; prazo: string; pagamento: string; validade: string;
+  recorrencia: string; responsabilidades: string; limites: string; observacoes: string
+}
 
 export function FerramentasComerciais({ lead }: { lead: Lead }) {
   const [aba, setAba] = useState<"demo" | "proposta" | null>(null)
@@ -21,9 +25,25 @@ export function FerramentasComerciais({ lead }: { lead: Lead }) {
   const [pdfBaixado, setPdfBaixado] = useState(false)
   const { copiar } = useClipboard()
   const [proposta, setProposta] = useState<Proposta>({
-    cliente: lead.nome, servicos: "Site profissional responsivo, integração com WhatsApp e SEO básico.",
+    cliente: lead.nome,
+    projeto: "Desenvolvimento de site profissional",
+    objetivo: "Fortalecer a presença digital da empresa, apresentar seus serviços com clareza e facilitar o contato de potenciais clientes.",
+    servicos: [
+      "• Design personalizado com a identidade visual da empresa.",
+      "• Layout responsivo para celular, tablet e computador.",
+      "• Apresentação institucional, serviços e canais de contato.",
+      "• Integração com WhatsApp e otimização básica para mecanismos de busca.",
+      "• Testes de navegação e publicação após aprovação.",
+    ].join("\n"),
+    beneficios: "Mais credibilidade digital, apresentação profissional dos serviços e uma jornada de contato mais simples para os visitantes.",
+    etapas: "1. Briefing e coleta dos materiais.\n2. Criação do layout e desenvolvimento.\n3. Revisão, aprovação e ajustes previstos no escopo.\n4. Testes e publicação.",
     inicial: "0", mensal: "90", prazo: "7 dias após receber os materiais e aprovar o escopo",
-    pagamento: "Mensalidade conforme data de vencimento acordada.", validade: "7 dias", observacoes: "",
+    pagamento: "Valor inicial conforme acordado. Mensalidade com vencimento definido na contratação.",
+    validade: "7 dias",
+    recorrencia: "A definir na contratação: hospedagem, manutenção, suporte e atualizações previstas no plano.",
+    responsabilidades: "O cliente fornece logomarca, textos, imagens autorizadas e informações comerciais, além de aprovar o conteúdo antes da publicação.",
+    limites: "Domínio, serviços de terceiros, campanhas de tráfego pago e funcionalidades fora do escopo devem ser acordados separadamente.",
+    observacoes: "",
   })
   const endpoint = "/api/leads/" + encodeURIComponent(lead.place_id)
   function atualizar(chave: keyof Proposta, valor: string) {
@@ -68,11 +88,26 @@ export function FerramentasComerciais({ lead }: { lead: Lead }) {
       abrirWhatsappInstalado(lead.whatsapp_link, "Olá! Preparei uma proposta comercial da FLP Systems para " + proposta.cliente + ". Seguem as condições para sua avaliação.")
     } catch (e) { toast.error(e instanceof Error ? e.message : "Falha ao abrir WhatsApp.") }
   }
-  const campos: { chave: keyof Proposta; titulo: string; longo?: boolean; numero?: boolean }[] = [
-    { chave: "cliente", titulo: "Cliente" }, { chave: "servicos", titulo: "Serviços e entregáveis", longo: true },
-    { chave: "inicial", titulo: "Valor inicial (R$)", numero: true }, { chave: "mensal", titulo: "Mensalidade (R$)", numero: true },
-    { chave: "prazo", titulo: "Prazo de entrega" }, { chave: "pagamento", titulo: "Condições de pagamento", longo: true },
-    { chave: "validade", titulo: "Validade" }, { chave: "observacoes", titulo: "Observações", longo: true },
+  type Campo = { chave: keyof Proposta; titulo: string; longo?: boolean; numero?: boolean }
+  const grupos: { titulo: string; campos: Campo[] }[] = [
+    { titulo: "01 · Apresentação do projeto", campos: [
+      { chave: "cliente", titulo: "Cliente" }, { chave: "projeto", titulo: "Nome do projeto" },
+      { chave: "objetivo", titulo: "Objetivo personalizado", longo: true },
+      { chave: "servicos", titulo: "Serviços e entregáveis", longo: true },
+      { chave: "beneficios", titulo: "Benefícios esperados", longo: true },
+      { chave: "etapas", titulo: "Etapas de desenvolvimento", longo: true },
+    ] },
+    { titulo: "02 · Investimento e condições", campos: [
+      { chave: "inicial", titulo: "Valor inicial (R$)", numero: true },
+      { chave: "mensal", titulo: "Mensalidade (R$)", numero: true },
+      { chave: "prazo", titulo: "Prazo de entrega" },
+      { chave: "pagamento", titulo: "Condições de pagamento", longo: true },
+      { chave: "validade", titulo: "Validade da proposta" },
+      { chave: "recorrencia", titulo: "O que a mensalidade contempla", longo: true },
+      { chave: "responsabilidades", titulo: "Responsabilidades e materiais", longo: true },
+      { chave: "limites", titulo: "Limites do escopo e custos adicionais", longo: true },
+      { chave: "observacoes", titulo: "Observações", longo: true },
+    ] },
   ]
   return (
     <section className="space-y-3 rounded-xl border border-border bg-card p-3">
@@ -109,10 +144,18 @@ export function FerramentasComerciais({ lead }: { lead: Lead }) {
         <img src="/flp-systems-light.svg" alt="FLP Systems" className="h-10 max-w-full object-contain dark:hidden" />
         <img src="/flp-systems-dark.svg" alt="FLP Systems" className="hidden h-10 max-w-full object-contain dark:block" />
         <p className="text-xs text-muted-foreground">Valores sugeridos são editáveis. Confirme escopo, valores e prazos antes de enviar.</p>
-        {campos.map(({ chave, titulo, longo, numero }) => <label className="block text-sm" key={chave}>{titulo}
-          {longo ? <Textarea disabled={ocupado} value={proposta[chave]} onChange={e => atualizar(chave, e.target.value)} />
-            : <Input disabled={ocupado} type={numero ? "number" : "text"} min={numero ? 0 : undefined} step={numero ? "0.01" : undefined} value={proposta[chave]} onChange={e => atualizar(chave, e.target.value)} />}
-        </label>)}
+        {grupos.map(grupo => <fieldset key={grupo.titulo} className="space-y-3 rounded-lg border border-border p-3">
+          <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-primary">{grupo.titulo}</legend>
+          {grupo.campos.map(({ chave, titulo, longo, numero }) => <label className="block space-y-1 text-sm" key={chave}>
+            <span className="font-medium">{titulo}</span>
+            {longo ? <Textarea rows={chave === "servicos" ? 6 : 3} maxLength={chave === "pagamento" ? 1500 : 4000} disabled={ocupado} value={proposta[chave]} onChange={e => atualizar(chave, e.target.value)} />
+              : <Input disabled={ocupado} type={numero ? "number" : "text"} maxLength={numero ? undefined : 200} min={numero ? 0 : undefined} max={numero ? 10000000 : undefined} step={numero ? "0.01" : undefined} value={proposta[chave]} onChange={e => atualizar(chave, e.target.value)} />}
+          </label>)}
+        </fieldset>)}
+        <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-3">
+          <div><p className="text-xs text-muted-foreground">Investimento inicial</p><p className="text-lg font-semibold">{(Number(proposta.inicial) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p></div>
+          <div><p className="text-xs text-muted-foreground">Mensalidade</p><p className="text-lg font-semibold text-primary">{(Number(proposta.mensal) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p></div>
+        </div>
         <Button size="sm" disabled={ocupado} onClick={baixarProposta}>{ocupado ? "Gerando..." : "Baixar proposta PDF"}</Button>
         <Button size="sm" variant="outline" disabled={!pdfBaixado || !lead.whatsapp_link || ocupado} onClick={enviarProposta}>Abrir WhatsApp para enviar</Button>
         <p className="text-xs text-muted-foreground">Anexe o PDF baixado manualmente. O aplicativo não envia mensagens nem arquivos sozinho.</p>
