@@ -426,6 +426,7 @@ def ingerir_mensagens_do_whatsapp():
                         "motivo": "nenhum lead com esse telefone"})
 
     novas = 0
+    contato_registrado = False
     conexao = db.conectar()
     try:
         total_atual = conexao.execute(
@@ -448,8 +449,9 @@ def ingerir_mensagens_do_whatsapp():
             try:
                 if _inserir_mensagem(conexao, canal, lead_ref, autor, texto, enviada_em, "whatsapp", chave):
                     novas += 1
-                    if canal == "maps" and autor == "vendedor":
-                        _marcar_contato_maps(conexao, lead_ref)
+                if canal == "maps" and autor == "vendedor":
+                    # Também repara leads novos cujo envio já estava no histórico.
+                    contato_registrado = _marcar_contato_maps(conexao, lead_ref) or contato_registrado
             except sqlite3.Error:
                 logger.exception("falha ao gravar mensagem capturada, seguindo com as demais")
 
@@ -460,4 +462,4 @@ def ingerir_mensagens_do_whatsapp():
     if novas:
         logger.info("cockpit: %s mensagem(ns) nova(s) capturada(s) para %s/%s", novas, canal, lead_ref)
     return jsonify({"ok": True, "vinculado": True, "canal": canal,
-                    "lead_ref": lead_ref, "novas": novas})
+                    "lead_ref": lead_ref, "novas": novas, "contato_registrado": contato_registrado})
