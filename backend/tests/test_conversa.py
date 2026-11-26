@@ -454,3 +454,49 @@ class TestRotaAnalisar:
         resposta = cliente.post("/api/conversa/maps/place-1/analisar")
         assert resposta.status_code == 500
         assert "Configurações" in resposta.get_json()["erro"]
+
+
+class TestRegistroContato:
+    def test_abrir_whatsapp_nao_marca_contato(self, cliente):
+        criar_lead()
+        resposta = cliente.post("/api/conversa/lead-ativo", json={"canal": "maps", "lead_ref": "place-1"})
+        assert resposta.status_code == 200
+        assert cliente.get("/api/leads/place-1").get_json()["status"] == "novo"
+
+    def test_mensagem_recebida_nao_marca_contato(self, cliente):
+        criar_lead()
+        cliente.post("/api/conversa/ingestao", json={
+            "telefone": "5565996757327",
+            "mensagens": [{"autor": "lead", "texto": "Olá", "id_externo": "recebida"}],
+        })
+        assert cliente.get("/api/leads/place-1").get_json()["status"] == "novo"
+
+    def test_envio_capturado_registra_status_uma_vez(self, cliente):
+        criar_lead()
+        lote = {
+            "telefone": "5565996757327",
+            "mensagens": [{"autor": "vendedor", "texto": "Olá", "id_externo": "enviada"}],
+        }
+        for _ in range(2):
+            assert cliente.post("/api/conversa/ingestao", json=lote).status_code == 200
+        assert cliente.get("/api/leads/place-1").get_json()["status"] == "contatado"
+        historico = cliente.get("/api/leads/place-1/historico").get_json()
+        assert sum(h["status_novo"] == "contatado" for h in historico) == 1
+
+    def test_confirmacao_manual_idempotente(self, cliente):
+        criar_lead()
+        url = "/api/conversa/maps/place-1/confirmar-contato"
+        assert cliente.post(url).get_json()["alterado"] is True
+        assert cliente.post(url).get_json()["alterado"] is False
+        assert cliente.get("/api/leads/place-1").get_json()["status"] == "contatado"
+
+    @pytest.mark.parametrize("status", ["contatado", "respondeu", "fechou", "recusou", "ignorado"])
+    def test_nao_regride_status(self, cliente, status):
+        criar_lead()
+        cliente.post("/api/leads/place-1/status", json={"status": status})
+        cliente.post("/api/conversa/ingestao", json={
+            "telefone": "5565996757327",
+            "mensagens": [{"autor": "vendedor", "texto": "Olá", "id_externo": "enviada"}],
+        })
+        assert cliente.post("/api/conversa/maps/place-1/confirmar-contato").get_json()["alterado"] is False
+        assert cliente.get("/api/leads/place-1").get_json()["status"] == status
