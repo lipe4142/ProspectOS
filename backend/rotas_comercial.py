@@ -332,15 +332,23 @@ def gerar_proposta_pdf(lead, dados):
         if not item:
             continue
         n=linhas(item,173,11.5)
-        h=max(7,len(n)*5.2+1.2)
-        if pdf.will_page_break(h):
-            pdf.add_page()
-        y=pdf.get_y()
-        pdf.icone("check",16,y+.6,5)
-        fonte(11.5)
-        pdf.set_xy(27,y)
-        pdf.multi_cell(173,5.2,_limpar(item),new_x="LMARGIN",new_y="NEXT")
-        pdf.set_y(y+h)
+        primeira=True
+        while n:
+            if pdf.will_page_break(7):
+                pdf.add_page()
+            capacidade=max(1,int((pdf.page_break_trigger-pdf.get_y()-1.2)/5.2))
+            bloco,n=n[:capacidade],n[capacidade:]
+            h=max(7,len(bloco)*5.2+1.2)
+            y=pdf.get_y()
+            if primeira:
+                pdf.icone("check",16,y+.6,5)
+            fonte(11.5)
+            pdf.set_xy(27,y)
+            pdf.multi_cell(173,5.2,"\n".join(bloco),new_x="LMARGIN",new_y="NEXT")
+            pdf.set_y(y+h)
+            primeira=False
+            if n:
+                pdf.add_page()
     pdf.ln(4)
 
     faixa("02","Investimento",42)
@@ -372,7 +380,7 @@ def gerar_proposta_pdf(lead, dados):
     complemento=partes.group(2).strip(" ,.-") if partes else prazo
     if complemento:
         complemento=complemento[0].upper()+complemento[1:]
-    largura=105 if destaque else 153
+    largura=86 if destaque else 145
     alt=max(24,len(linhas(complemento,largura,11))*5.2+10)
     if pdf.will_page_break(alt):
         pdf.add_page()
