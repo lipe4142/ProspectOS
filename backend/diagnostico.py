@@ -362,8 +362,8 @@ def gerar_diagnostico_pdf(lead):
     for numero, (titulo, explicacao) in enumerate(achados, start=1):
         _card_problema(pdf, numero, titulo, explicacao)
 
-    # Raio-X em dois painéis coloridos
-    if checklist and (checklist.get("tem") or checklist.get("falta")):
+    # Ausência no HTML não comprova falta. Não repetir diagnósticos antigos de contatos.
+    if checklist and (checklist.get("tem") or checklist.get("falta") or checklist.get("nao_confirmado")):
         pdf.ln(2)
         _titulo_secao(pdf, "Raio-X do site atual")
         largura_painel = (LARGURA_CONTEUDO - 4) / 2
@@ -374,10 +374,13 @@ def gerar_diagnostico_pdf(lead):
         )
         altura_dir = _painel_lista(
             pdf, MARGEM + largura_painel + 4, y_paineis, largura_painel,
-            "O que está faltando", LARANJA, LARANJA_FUNDO, "-",
-            (checklist.get("falta") or ["nada - estrutura completa"])[:9],
+            "Não detectado (inconclusivo)", LARANJA, LARANJA_FUNDO, "?",
+            (list(dict.fromkeys((checklist.get("falta") or []) + (checklist.get("nao_confirmado") or []))) or ["nenhum item"])[:9],
         )
         pdf.set_y(y_paineis + max(altura_esq, altura_dir) + 4)
+        pdf.set_font("helvetica", "", 8)
+        pdf.set_text_color(*CINZA_SUAVE)
+        pdf.multi_cell(0, 4, "Itens não detectados não comprovam ausência. Widgets podem carregar depois; telefone e e-mail são opcionais.")
 
     if tem_site and lead["site_url"]:
         pdf.set_font("helvetica", "I", 8)
