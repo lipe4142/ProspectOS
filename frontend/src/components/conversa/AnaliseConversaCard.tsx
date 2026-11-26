@@ -78,6 +78,30 @@ export function AnaliseConversaCard({
             </div>
           )}
 
+          {[
+            { titulo: "Objeções identificadas", itens: analise.objecoes },
+            { titulo: "Serviços recomendados", itens: analise.servicos_recomendados },
+          ].map(({ titulo, itens }) => itens?.length ? (
+            <div key={titulo} className="rounded-lg border border-border p-3">
+              <h3 className="text-xs font-semibold uppercase text-primary">{titulo}</h3>
+              <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
+                {itens.map((item, i) => <li key={i}>{item}</li>)}
+              </ul>
+            </div>
+          ) : null)}
+          {analise.contraproposta && (
+            <div className="rounded-lg border border-border p-3">
+              <h3 className="text-xs font-semibold uppercase text-primary">Contraproposta para avaliar</h3>
+              <p className="mt-2 text-sm whitespace-pre-wrap">{analise.contraproposta}</p>
+              <p className="mt-2 text-xs text-muted-foreground">Revise valores e condições antes de oferecer.</p>
+            </div>
+          )}
+          {analise.proximo_passo && (
+            <div className="rounded-lg border border-border p-3">
+              <h3 className="text-xs font-semibold uppercase text-primary">Próximo passo prático</h3>
+              <p className="mt-2 text-sm">{analise.proximo_passo}</p>
+            </div>
+          )}
           {analise.resposta_sugerida && (
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">

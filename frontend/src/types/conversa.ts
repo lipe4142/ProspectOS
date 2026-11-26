@@ -24,6 +24,10 @@ export interface AnaliseConversa {
   objetivo: string
   resposta_sugerida: string
   evitar: string[]
+  objecoes?: string[]
+  contraproposta?: string
+  servicos_recomendados?: string[]
+  proximo_passo?: string
   provedor?: string | null
   avisos?: string[]
   mensagens_consideradas?: number
