@@ -27,6 +27,10 @@ import { tocarSom } from "@/hooks/useSom"
 import { montarEstrategia } from "@/lib/estrategia"
 import { formatarNota } from "@/lib/formatters"
 import { linkWhatsappComMensagem } from "@/services/tarefasService"
+import { conversaService } from "@/services/conversaService"
+import { httpClient } from "@/services/httpClient"
+import { useInvalidarLeads } from "@/hooks/useInvalidarLeads"
+import { toast } from "sonner"
 import { FILTROS_VAZIOS, type Lead } from "@/types/lead"
 
 const FILTROS_NOVOS = { ...FILTROS_VAZIOS, status: "novo" as const, ordenar: "score" as const }
@@ -48,20 +52,22 @@ function CartaoDaSessao({
   const mutations = useLeadMutations(lead.place_id)
   // no modo follow-up a copy de contato salva não serve - gera uma nova
   const [mensagem, setMensagem] = useState(modo === "novo" ? (lead.mensagem_gerada ?? "") : "")
+  const [abriuWhatsapp, setAbriuWhatsapp] = useState(false)
   const estrategia = useMemo(() => montarEstrategia(lead), [lead])
+  useEffect(() => { setAbriuWhatsapp(false) }, [lead.place_id, modo])
 
   useEffect(() => {
     setMensagem(modo === "novo" ? (lead.mensagem_gerada ?? "") : "")
   }, [lead.place_id, lead.mensagem_gerada, modo])
 
   const abrirWhatsappEContatar = () => {
-    if (lead.whatsapp_link) {
-      window.open(linkWhatsappComMensagem(lead.whatsapp_link, mensagem || null), "_blank")
-    }
-    onContatado()
+    if (!lead.whatsapp_link) return
+    conversaService.registrarLeadAtivo("maps", lead.place_id).catch(() => {})
+    window.open(linkWhatsappComMensagem(lead.whatsapp_link, mensagem || null), "_blank")
+    setAbriuWhatsapp(true)
   }
 
-  // Atalhos: Enter = WhatsApp + contatado · → = pular · Backspace = ignorar.
+  // Atalhos: Enter = abrir WhatsApp · → = pular · Backspace = ignorar.
   // Uma ref sempre aponta para os handlers atuais, então o listener (registrado
   // uma única vez) nunca opera sobre um lead/mensagem defasados por closure stale.
   const handlersRef = useRef({ abrirWhatsappEContatar, onPular, onIgnorar })
@@ -185,12 +191,23 @@ function CartaoDaSessao({
         )}
       </div>
 
+      {abriuWhatsapp && (
+        <div className="space-y-2 rounded-lg border border-border p-3">
+          <p className="text-xs text-muted-foreground">
+            {modo === "novo" && window.prospectOS?.desktop
+              ? "Aguardando confirmação automática do envio. Se a captura não funcionar, confirme manualmente."
+              : "Após enviar a mensagem no WhatsApp, confirme o envio aqui."}
+          </p>
+          <Button variant="outline" onClick={onContatado}>
+            <Check className="size-4" />
+            {modo === "followup" ? "Confirmar follow-up enviado" : "Confirmar que enviei"}
+          </Button>
+        </div>
+      )}
       <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
         <Button size="lg" onClick={abrirWhatsappEContatar} disabled={!lead.whatsapp_link}>
           <MessageCircle className="size-4" />
-          {modo === "followup"
-            ? "Abrir WhatsApp + follow-up feito"
-            : "Abrir WhatsApp + marcar contatado"}
+          Abrir WhatsApp
           <kbd className="ml-1 hidden rounded bg-primary-foreground/20 px-1.5 text-[10px] sm:inline">Enter</kbd>
         </Button>
         <Button size="lg" variant="outline" onClick={onPular}>
@@ -219,6 +236,7 @@ export function SessaoProspeccaoPage() {
   const filaNovos = useLeads(FILTROS_NOVOS)
   const [processados, setProcessados] = useState<Set<string>>(new Set())
   const [contatados, setContatados] = useState(0)
+  const invalidarLeads = useInvalidarLeads()
 
   const followupsPendentes = filaFollowups.leads.filter((l) => !processados.has(l.place_id))
   const idsFollowups = new Set(filaFollowups.leads.map((l) => l.place_id))
@@ -242,7 +260,7 @@ export function SessaoProspeccaoPage() {
     setProcessados((atual) => new Set(atual).add(placeId))
   }
 
-  const handleContatado = () => {
+  const handleContatado = async () => {
     if (!leadAtual) return
     const id = leadAtual.place_id
     if (modoAtual === "followup") {
@@ -252,12 +270,35 @@ export function SessaoProspeccaoPage() {
         proximoFollowupAnterior: leadAtual.proximo_followup,
       })
     } else {
-      mutations.atualizarStatus.mutate("contatado")
-      tocarSom("card-movido")
+      try {
+        const resultado = await httpClient.post<{ ok: true; alterado: boolean }>(
+          `/api/conversa/maps/${encodeURIComponent(id)}/confirmar-contato`
+        )
+        invalidarLeads()
+        if (!resultado.alterado) { avancar(id); return }
+        tocarSom("card-movido")
+      } catch (erro) {
+        toast.error(erro instanceof Error ? erro.message : "Não foi possível confirmar o contato.")
+        return
+      }
     }
     setContatados((c) => c + 1)
     avancar(id)
   }
+
+  useEffect(() => {
+    if (!window.prospectOS?.desktop || !leadAtual || modoAtual !== "novo") return
+    const id = leadAtual.place_id
+    return window.prospectOS.aoReceber("cockpit:mensagens-novas", (dados) => {
+      if (!dados || typeof dados !== "object") return
+      if ("contato_registrado" in dados && dados.contato_registrado === true &&
+          "canal" in dados && dados.canal === "maps" &&
+          "lead_ref" in dados && dados.lead_ref === id) {
+        setProcessados((atual) => new Set(atual).add(id))
+        setContatados((c) => c + 1)
+      }
+    })
+  }, [leadAtual?.place_id, modoAtual])
 
   const handleIgnorar = () => {
     if (!leadAtual) return
