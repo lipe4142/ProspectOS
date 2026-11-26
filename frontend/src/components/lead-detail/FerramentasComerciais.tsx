@@ -23,6 +23,7 @@ export function FerramentasComerciais({ lead }: { lead: Lead }) {
   const [demo, setDemo] = useState<Demonstracao | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [pdfBaixado, setPdfBaixado] = useState(false)
+  const [incluirDetalhes, setIncluirDetalhes] = useState(false)
   const { copiar } = useClipboard()
   const [proposta, setProposta] = useState<Proposta>({
     cliente: lead.nome,
@@ -63,7 +64,7 @@ export function FerramentasComerciais({ lead }: { lead: Lead }) {
     setOcupado(true)
     try {
       const resposta = await fetch(endpoint + "/proposta.pdf", { method: "POST",
-        headers: { "Content-Type": "application/json" }, body: JSON.stringify(proposta) })
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...proposta, incluir_detalhes: incluirDetalhes }) })
       if (!resposta.ok) {
         const erro = await resposta.json().catch(() => ({}))
         throw new Error(erro.erro || "Não foi possível gerar o PDF.")
@@ -144,9 +145,10 @@ export function FerramentasComerciais({ lead }: { lead: Lead }) {
         <img src="/flp-systems-light.svg" alt="FLP Systems" className="h-10 max-w-full object-contain dark:hidden" />
         <img src="/flp-systems-dark.svg" alt="FLP Systems" className="hidden h-10 max-w-full object-contain dark:block" />
         <p className="text-xs text-muted-foreground">Valores sugeridos são editáveis. Confirme escopo, valores e prazos antes de enviar.</p>
+        <label className="flex items-start gap-2 rounded-lg border border-border p-3 text-sm"><input type="checkbox" checked={incluirDetalhes} disabled={ocupado} onChange={e => { setIncluirDetalhes(e.target.checked); setPdfBaixado(false) }} /><span><strong>Incluir anexo com detalhes do projeto</strong><br /><span className="text-xs text-muted-foreground">Desmarcado: proposta visual compacta conforme o modelo FLP. Marcado: inclui objetivo, benefícios, etapas, mensalidade e condições adicionais.</span></span></label>
         {grupos.map(grupo => <fieldset key={grupo.titulo} className="space-y-3 rounded-lg border border-border p-3">
           <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-primary">{grupo.titulo}</legend>
-          {grupo.campos.map(({ chave, titulo, longo, numero }) => <label className="block space-y-1 text-sm" key={chave}>
+          {grupo.campos.filter(campo => incluirDetalhes || !["objetivo", "beneficios", "etapas", "recorrencia", "responsabilidades", "limites", "observacoes"].includes(campo.chave)).map(({ chave, titulo, longo, numero }) => <label className="block space-y-1 text-sm" key={chave}>
             <span className="font-medium">{titulo}</span>
             {longo ? <Textarea rows={chave === "servicos" ? 6 : 3} maxLength={chave === "pagamento" ? 1500 : 4000} disabled={ocupado} value={proposta[chave]} onChange={e => atualizar(chave, e.target.value)} />
               : <Input disabled={ocupado} type={numero ? "number" : "text"} maxLength={numero ? undefined : 200} min={numero ? 0 : undefined} max={numero ? 10000000 : undefined} step={numero ? "0.01" : undefined} value={proposta[chave]} onChange={e => atualizar(chave, e.target.value)} />}

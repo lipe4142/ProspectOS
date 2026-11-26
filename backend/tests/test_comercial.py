@@ -45,8 +45,21 @@ def test_proposta_completa_e_campos_longos():
         "pagamento": "Conforme contratação", "validade": "7 dias",
         "recorrencia": "Manutenção conforme plano.", "responsabilidades": "Enviar materiais.",
         "limites": "Custos externos à parte.", "observacoes": "Detalhes do escopo.\n" * 120,
+        "incluir_detalhes": True,
     }
     pdf = gerar_proposta_pdf({"nome": "Empresa Exemplo"}, dados)
     assert pdf.startswith(b"%PDF")
     with pytest.raises(ValueError):
         gerar_proposta_pdf({}, {**dados, "objetivo": "x" * 4001})
+
+
+def test_modelo_compacto_solar():
+    pdf = gerar_proposta_pdf({"nome": "ENERGIA SLZ", "categoria": "Energia solar"}, {
+        "cliente": "ENERGIA SLZ - ENERGIA SOLAR", "projeto": "Desenvolvimento de site profissional",
+        "servicos": "Design personalizado\nLayout responsivo\nApresentação institucional\nIntegração com WhatsApp\nTestes e publicação",
+        "inicial": "199.99", "mensal": "90", "prazo": "7 dias após o recebimento dos materiais e aprovação do escopo",
+        "pagamento": "Valor inicial conforme acordado. Mensalidade com vencimento definido na contratação.",
+        "validade": "7 dias", "incluir_detalhes": False,
+    })
+    assert pdf.startswith(b"%PDF")
+    assert b"/Count 1" in pdf
