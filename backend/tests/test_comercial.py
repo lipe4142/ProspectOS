@@ -84,3 +84,27 @@ def test_proposta_com_qr_instagram():
     assert pdf.startswith(b"%PDF")
     assert b"/Count 1" in pdf
     assert b"https://www.instagram.com/empresa.exemplo/" in pdf
+
+
+def test_briefing_sem_json_e_sugestao_solar():
+    from rotas_comercial import _dados_empresa, _sugestoes_nicho, _montar_prompt_demo
+    dados = _dados_empresa({"nome": "Energia SLZ", "nicho": "Energia solar", "cidade": "", "site_url": None})
+    assert "Energia SLZ" in dados and "null" not in dados and "Cidade:" not in dados
+    assert "somente se oferecidas" in _sugestoes_nicho({"nicho": "Energia solar"})
+    assert "demonstração não oficial" in _montar_prompt_demo(dados)
+
+
+def test_demonstracao_ia_texto_simples(monkeypatch):
+    from flask import Flask
+    import rotas_comercial as comercial
+    app = Flask(__name__)
+    app.register_blueprint(comercial.bp)
+    monkeypatch.setattr(comercial, "_lead", lambda _: {"nome": "Energia SLZ", "nicho": "Energia solar"})
+    def sucesso(system, user, **kwargs):
+        assert kwargs["formato_json"] is False
+        return kwargs["parser"]("Sugestão: destaque o orçamento."), "groq", []
+    monkeypatch.setattr(comercial.ia, "executar_com_fallback", sucesso)
+    dados = app.test_client().post("/api/leads/abc/demonstracao", json={}).get_json()
+    assert dados["provedor"] == "groq"
+    assert "Sugestão: destaque o orçamento." in dados["briefing"]
+    assert "Sugestão: destaque o orçamento." in dados["prompt"]

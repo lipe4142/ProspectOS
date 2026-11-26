@@ -64,9 +64,10 @@ class NenhumProvedorDisponivel(Exception):
     """Todos os provedores configurados falharam (ou nenhum está configurado).
     `erro_final` carrega o último erro real, ou None se nada chegou a ser tentado."""
 
-    def __init__(self, erro_final):
+    def __init__(self, erro_final, avisos=None):
         super().__init__(str(erro_final))
         self.erro_final = erro_final
+        self.avisos = avisos or []
 
 
 def _provedor_em_cooldown(provedor):
@@ -213,7 +214,12 @@ def executar_com_fallback(system, user, parser=None, descricao_log="gerar mensag
             erro_final = erro
             continue
 
-    raise NenhumProvedorDisponivel(erro_final)
+    raise NenhumProvedorDisponivel(erro_final, [
+        aviso if any(m in aviso for m in ("cota gratuita excedida", "demorou demais", "serviço indisponível"))
+        and not any(m in aviso.lower() for m in ("api_key", "api key", "bearer", "sk-"))
+        and len(aviso) < 180 else aviso.split(" indisponível agora", 1)[0] + " indisponível; confira as configurações e os logs."
+        for aviso in avisos
+    ])
 
 
 # ---------------------------------------------------------------------------

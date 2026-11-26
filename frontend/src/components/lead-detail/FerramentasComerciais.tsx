@@ -8,7 +8,7 @@ import { useClipboard } from "@/hooks/useClipboard"
 import { toast } from "sonner"
 import type { Lead } from "@/types/lead"
 
-type Demonstracao = { briefing: string; prompt: string; provedor?: string | null; avisos?: string[] }
+type Demonstracao = { briefing: string; prompt: string; provedor?: string | null; avisos?: string[]; motivo_ia?: string }
 type Proposta = {
   cliente: string; projeto: string; objetivo: string; servicos: string; beneficios: string;
   etapas: string; inicial: string; mensal: string; prazo: string; pagamento: string; validade: string;
@@ -59,7 +59,9 @@ export function FerramentasComerciais({ lead }: { lead: Lead }) {
     try {
       const resposta = await httpClient.post<Demonstracao>(endpoint + "/demonstracao", { identidade, servicos, referencias })
       setDemo(resposta)
-      if (resposta.avisos?.length) toast.warning(resposta.avisos.join(" "))
+      if (!resposta.provedor) toast.success("Briefing e prompt gerados no modo local.")
+      else if (resposta.avisos?.length) toast.warning(resposta.avisos.join(" "))
+      else toast.success("Briefing e prompt gerados com IA.")
     } catch (e) { toast.error(e instanceof Error ? e.message : "Falha ao gerar demonstração.") }
     finally { setOcupado(false) }
   }
@@ -133,7 +135,8 @@ export function FerramentasComerciais({ lead }: { lead: Lead }) {
         </label>
         <Button size="sm" disabled={ocupado} onClick={gerarDemo}>{ocupado ? "Gerando..." : "Gerar briefing e prompt"}</Button>
         {demo && <div className="space-y-3">
-          <p className="text-xs text-muted-foreground">{demo.provedor ? "IA: " + demo.provedor : "Modelo local"} · Revise fatos e materiais antes de usar.</p>
+          <p className="text-xs text-muted-foreground">{demo.provedor ? "IA: " + demo.provedor : "Modelo local completo"} · Revise fatos e materiais antes de usar.</p>
+          {demo.motivo_ia && <div className="rounded-lg border border-border bg-muted/50 p-2 text-xs text-muted-foreground"><strong>Complemento por IA indisponível.</strong> {demo.motivo_ia} O briefing e o prompt continuam prontos para uso.</div>}
           <label className="block text-sm">Briefing
             <Textarea rows={6} value={demo.briefing} onChange={e => setDemo({ ...demo, briefing: e.target.value })} />
           </label>
