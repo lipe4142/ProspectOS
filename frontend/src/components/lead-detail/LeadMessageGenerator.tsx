@@ -42,6 +42,7 @@ export function LeadMessageGenerator({
   marcarFollowupEnviado,
 }: LeadMessageGeneratorProps) {
   const [mensagem, setMensagem] = useState(lead.mensagem_gerada ?? "")
+  const [aguardandoEnvio, setAguardandoEnvio] = useState(false)
   const queryClient = useQueryClient()
   const invalidarLeads = useInvalidarLeads()
   const jaContatado = ["contatado", "respondeu", "fechou", "recusou"].includes(lead.status)
@@ -60,6 +61,8 @@ export function LeadMessageGenerator({
   useEffect(() => {
     setMensagem(lead.mensagem_gerada ?? "")
   }, [lead.place_id, lead.mensagem_gerada])
+
+  useEffect(() => { setAguardandoEnvio(false) }, [lead.place_id, lead.status])
 
   const { copiado, copiar } = useClipboard()
   const {
@@ -138,6 +141,8 @@ export function LeadMessageGenerator({
             size="sm"
             className="bg-success text-white hover:bg-success/90"
             onClick={() => {
+              if (jaContatado && !window.confirm("Este lead já recebeu contato. Deseja abrir o WhatsApp mesmo assim?")) return
+              if (lead.status === "novo") setAguardandoEnvio(true)
               // avisa de quem é a conversa antes da janela abrir, pro cockpit
               // vincular as mensagens capturadas ao lead certo
               conversaService.registrarLeadAtivo("maps", lead.place_id).catch(() => {})
@@ -161,6 +166,13 @@ export function LeadMessageGenerator({
         )}
       </div>
 
+      {aguardandoEnvio && lead.status === "novo" && (
+        <p className="rounded-md border border-border p-2 text-xs text-muted-foreground">
+          {window.prospectOS?.desktop
+            ? "Aguardando detectar sua mensagem no WhatsApp. Se não atualizar, use Confirmar que enviei."
+            : "O navegador não permite confirmar o envio automaticamente. Depois de enviar, clique em Confirmar que enviei."}
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/40 p-2.5">
         <Button
           size="sm"
