@@ -108,3 +108,12 @@ def test_demonstracao_ia_texto_simples(monkeypatch):
     assert dados["provedor"] == "groq"
     assert "Sugestão: destaque o orçamento." in dados["briefing"]
     assert "Sugestão: destaque o orçamento." in dados["prompt"]
+
+
+def test_prompt_demo_prioriza_site_estatico():
+    from rotas_comercial import _montar_prompt_demo
+    prompt = _montar_prompt_demo("Empresa exemplo")
+    assert "HTML5 semântico e CSS3 puro" in prompt
+    assert "JavaScript nativo apenas quando indispensável" in prompt
+    assert "Não use React" in prompt
+    assert "index.html, style.css" in prompt
