@@ -655,16 +655,11 @@ def reanalisar_site(place_id):
     if lead is None:
         return jsonify({"erro": "lead não encontrado"}), 404
 
-    site_url = lead["site_url"] or processar.buscar_site_da_empresa(
-        lead["nome"], lead["endereco"] or lead["cidade"] or ""
+    site_url, situacao, problemas, checklist = processar.verificar_site_empresa(
+        lead["nome"], lead["endereco"] or lead["cidade"] or "", lead["site_url"]
     )
-
-    if not site_url:
-        novo_status, problemas_texto, checklist = "sem_site", None, None
-    else:
-        situacao, problemas, checklist = processar.avaliar_site_completo(site_url)
-        novo_status = "site_ok" if situacao == "ok" else "site_ruim"
-        problemas_texto = "; ".join(problemas) or None
+    novo_status = {"ok": "site_ok", "ruim": "site_ruim", "sem_site": "sem_site"}[situacao]
+    problemas_texto = "; ".join(problemas) or None
 
     agora = datetime.now().isoformat(timespec="seconds")
     conexao = db.conectar()
