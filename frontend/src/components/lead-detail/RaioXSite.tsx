@@ -45,7 +45,7 @@ export function RaioXSite({ checklist }: RaioXSiteProps) {
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-success">
-            Já tem
+            Detectado
           </p>
           {checklist.tem.length === 0 ? (
             <p className="text-xs text-muted-foreground">nada detectado</p>
@@ -62,10 +62,10 @@ export function RaioXSite({ checklist }: RaioXSiteProps) {
         </div>
         <div>
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-warning">
-            Está faltando
+            Não detectado no HTML
           </p>
           {checklist.falta.length === 0 ? (
-            <p className="text-xs text-muted-foreground">nenhuma falta detectada</p>
+            <p className="text-xs text-muted-foreground">nenhum item adicional não detectado</p>
           ) : (
             <ul className="space-y-1">
               {checklist.falta.map((item) => (
@@ -78,6 +78,14 @@ export function RaioXSite({ checklist }: RaioXSiteProps) {
           )}
         </div>
       </div>
+      {!!checklist.nao_confirmado?.length && (
+        <div className="rounded-lg border border-border p-3 text-xs text-muted-foreground">
+          <p className="font-semibold text-foreground">Contatos não confirmados</p>
+          <p>{checklist.nao_confirmado.join(", ")}</p>
+          <p className="mt-1">Não significa ausência ou falha. Widgets podem carregar depois, e cada negócio escolhe seus canais.</p>
+        </div>
+      )}
+      <p className="text-xs text-muted-foreground">{checklist.analise_renderizada ? "HTML e página renderizada inspecionados; envio de mensagens não testado." : "Análise de HTML; recursos dinâmicos podem não ter sido detectados."}</p>
     </div>
   )
 }
