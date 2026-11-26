@@ -71,6 +71,9 @@ function lerConversaVisivel() {
 
     const [, souEu, jid] = casado;
     telefone = telefone || jid;
+    if (jid !== telefone) continue; // não misturar linhas de contatos na troca de chat
+    // Mensagem ainda aguardando envio não confirma o primeiro contato.
+    if (souEu === "true" && linha.querySelector('[data-icon="msg-time"], [data-icon="msg-error"]')) continue;
 
     // mídia/áudio sem legenda: registra um marcador em vez de sumir com a
     // mensagem - a IA precisa saber que houve troca, mesmo sem o conteúdo
@@ -147,9 +150,9 @@ function reportarFalhaDeLeitura(detalhe) {
 }
 
 function iniciarObservador() {
-  const alvo = document.querySelector(SELETORES.painelConversa) || document.body;
+  const alvo = document.body; // o painel pode ser recriado ao trocar de conversa
   const observador = new MutationObserver(() => coletar());
-  observador.observe(alvo, { childList: true, subtree: true, characterData: true });
+  observador.observe(alvo, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["data-icon", "data-id"] });
   coletar(); // primeira leitura do que já está na tela
 }
 
