@@ -36,6 +36,12 @@ export function RaioXSite({ checklist }: RaioXSiteProps) {
           {checklist.url_final && <p className="break-all text-muted-foreground">Destino: {checklist.url_final}</p>}
         </div>
       )}
+      {checklist.resumo_ia && (
+        <div className="rounded-lg bg-muted/40 p-3 text-xs">
+          <p className="mb-1 font-semibold">Resumo da IA</p>
+          <p>{checklist.resumo_ia}</p>
+        </div>
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-success">
@@ -59,7 +65,7 @@ export function RaioXSite({ checklist }: RaioXSiteProps) {
             Está faltando
           </p>
           {checklist.falta.length === 0 ? (
-            <p className="text-xs text-muted-foreground">nada - estrutura completa</p>
+            <p className="text-xs text-muted-foreground">nenhuma falta detectada</p>
           ) : (
             <ul className="space-y-1">
               {checklist.falta.map((item) => (
