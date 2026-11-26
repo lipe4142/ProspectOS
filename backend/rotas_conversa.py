@@ -149,6 +149,38 @@ def _inserir_mensagem(conexao, canal, lead_ref, autor, texto, enviada_em, origem
     return cursor.rowcount > 0
 
 
+def _marcar_contato_maps(conexao, lead_ref):
+    """Registra o primeiro contato sem regredir negociações ou duplicar histórico."""
+    agora = _agora()
+    cursor = conexao.execute(
+        "UPDATE leads SET status = 'contatado', atualizado_em = ? "
+        "WHERE place_id = ? AND status = 'novo'",
+        (agora, lead_ref),
+    )
+    if cursor.rowcount:
+        conexao.execute(
+            "INSERT INTO historico_status (place_id, status_anterior, status_novo, alterado_em) "
+            "VALUES (?, 'novo', 'contatado', ?)",
+            (lead_ref, agora),
+        )
+    return bool(cursor.rowcount)
+
+
+@bp.route("/api/conversa/maps/<path:lead_ref>/confirmar-contato", methods=["POST"])
+def confirmar_contato(lead_ref):
+    """Confirmação humana quando o WhatsApp é aberto fora da janela integrada."""
+    _lead, erro = _validar_alvo("maps", lead_ref)
+    if erro:
+        return erro
+    conexao = db.conectar()
+    try:
+        alterado = _marcar_contato_maps(conexao, lead_ref)
+        conexao.commit()
+        return jsonify({"ok": True, "alterado": alterado})
+    finally:
+        conexao.close()
+
+
 def _ultima_analise(conexao, canal, lead_ref):
     linha = conexao.execute(
         "SELECT estagio, leitura, objetivo, resposta_sugerida, evitar, provedor, "
@@ -416,6 +448,8 @@ def ingerir_mensagens_do_whatsapp():
             try:
                 if _inserir_mensagem(conexao, canal, lead_ref, autor, texto, enviada_em, "whatsapp", chave):
                     novas += 1
+                    if canal == "maps" and autor == "vendedor":
+                        _marcar_contato_maps(conexao, lead_ref)
             except sqlite3.Error:
                 logger.exception("falha ao gravar mensagem capturada, seguindo com as demais")
 
