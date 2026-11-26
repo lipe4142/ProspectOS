@@ -5,6 +5,8 @@ export function useInvalidarLeads() {
 
   return () => {
     queryClient.invalidateQueries({ queryKey: ["leads"] })
+    queryClient.invalidateQueries({ queryKey: ["lead"] })
+    queryClient.invalidateQueries({ queryKey: ["tarefas-hoje"] })
     queryClient.invalidateQueries({ queryKey: ["metricas"] })
     queryClient.invalidateQueries({ queryKey: ["metricas-combinadas"] })
     queryClient.invalidateQueries({ queryKey: ["follow-ups-hoje"] })
