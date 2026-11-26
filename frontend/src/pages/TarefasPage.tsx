@@ -12,7 +12,7 @@ import { PageHero } from "@/components/shared/PageHero"
 import { useTarefasHoje } from "@/hooks/useTarefasHoje"
 import { tocarSom } from "@/hooks/useSom"
 import { ajustarSaudacao } from "@/lib/saudacao"
-import { linkWhatsappComMensagem } from "@/services/tarefasService"
+import { abrirWhatsappInstalado } from "@/services/tarefasService"
 import { formatarNota } from "@/lib/formatters"
 import type { LeadQuente, TarefaFollowup } from "@/types/tarefas"
 
@@ -57,9 +57,11 @@ function LinhaFollowup({
         {tarefa.canal === "maps" && tarefa.whatsapp_link && (
           <Button size="sm" variant="outline" className="h-8 text-xs" asChild>
             <a
-              href={linkWhatsappComMensagem(tarefa.whatsapp_link, tarefa.mensagem)}
-              target="_blank"
-              rel="noreferrer"
+              href="#"
+              onClick={(evento) => {
+                evento.preventDefault()
+                abrirWhatsappInstalado(tarefa.whatsapp_link!, tarefa.mensagem)
+              }}
             >
               <MessageCircle className="size-3.5" />
               Abrir WhatsApp
@@ -135,9 +137,11 @@ function LinhaLeadQuente({
         {lead.whatsapp_link && (
           <Button size="sm" variant="outline" className="h-8 text-xs" asChild>
             <a
-              href={linkWhatsappComMensagem(lead.whatsapp_link, lead.mensagem)}
-              target="_blank"
-              rel="noreferrer"
+              href="#"
+              onClick={(evento) => {
+                evento.preventDefault()
+                abrirWhatsappInstalado(lead.whatsapp_link!, lead.mensagem)
+              }}
               title={
                 lead.mensagem
                   ? "Abre o WhatsApp com a mensagem gerada já preenchida"
@@ -151,7 +155,7 @@ function LinhaLeadQuente({
         )}
         <Button size="sm" className="h-8 text-xs" onClick={onContatado} disabled={desabilitado}>
           <Check className="size-3.5" />
-          Marcar contatado
+          Confirmar que enviei
         </Button>
       </div>
     </div>
