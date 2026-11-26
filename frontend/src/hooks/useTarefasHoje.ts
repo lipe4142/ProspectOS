@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { tarefasService } from "@/services/tarefasService"
 import { leadsService } from "@/services/leadsService"
+import { httpClient } from "@/services/httpClient"
 import { instagramService } from "@/services/instagramService"
 import { tocarSom } from "@/hooks/useSom"
 import { useInvalidarLeads } from "@/hooks/useInvalidarLeads"
@@ -37,11 +38,11 @@ export function useTarefasHoje() {
   })
 
   const marcarContatado = useMutation({
-    mutationFn: (placeId: string) => leadsService.atualizarStatus(placeId, "contatado"),
+    mutationFn: (placeId: string) => httpClient.post<{ ok: true; alterado: boolean }>(`/api/conversa/maps/${encodeURIComponent(placeId)}/confirmar-contato`),
     onSuccess: () => {
       invalidar()
       tocarSom("card-movido")
-      toast.success("Lead marcado como contatado.")
+      toast.success("Contato registrado no CRM.")
     },
   })
 
