@@ -243,22 +243,20 @@ class TestSystemPrompt:
 
 class TestSorteioDeFechamento:
     def test_pergunta_de_sim_nao(self, monkeypatch):
-        monkeypatch.setattr(ia.random, "random", lambda: 0.1)  # < 0.5 → pergunta
         monkeypatch.setattr(ia.random, "choice", lambda opcoes: opcoes[0])
 
         fechamento = ia.sortear_fechamento()
         assert "pergunta de sim/não" in fechamento
         assert ia.PERGUNTAS_DE_FECHAMENTO[0] in fechamento
 
-    def test_horario_concreto_em_dia_util(self, monkeypatch):
-        monkeypatch.setattr(ia.random, "random", lambda: 0.9)  # >= 0.5 → horário
-        monkeypatch.setattr(ia.random, "randint", lambda a, b: 1)
-        monkeypatch.setattr(ia.random, "choice", lambda opcoes: opcoes[0])
-
-        fechamento = ia.sortear_fechamento()
-        assert "horário concreto" in fechamento
-        assert any(dia in fechamento for dia in ia.NOMES_DIAS_UTEIS)
-        assert "9h" in fechamento
+    def test_todas_as_opcoes_convidam_para_previa_sem_reuniao(self, monkeypatch):
+        for pergunta in ia.PERGUNTAS_DE_FECHAMENTO:
+            monkeypatch.setattr(ia.random, "choice", lambda opcoes, p=pergunta: p)
+            fechamento = ia.sortear_fechamento()
+            assert pergunta in fechamento
+            assert "horário concreto" not in fechamento
+            assert "reunião" not in fechamento
+            assert any(termo in pergunta for termo in ("modelo", "prévia", "site", "layout", "demonstração"))
 
     def test_fechamento_sorteado_entra_no_prompt(self, monkeypatch):
         monkeypatch.setattr(ia, "sortear_fechamento", lambda: "FECHAMENTO-SORTEADO")
@@ -268,8 +266,19 @@ class TestSorteioDeFechamento:
 
 class TestPromptContato:
     def test_sem_site_usa_argumento_de_ausencia(self):
-        prompt = ia.montar_prompt_contato("Empresa X", "clínica", "Rua A", 4.8)
+        prompt = ia.montar_prompt_contato("Empresa X", "clínica", "Rua A", 4.8, site_status="sem_site")
         assert "NÃO possui site" in prompt
+
+    def test_site_existente_sem_problemas_nao_inventa_falhas(self):
+        prompt = ia.montar_prompt_contato("Empresa X", "clínica", "Rua A", 4.8, site_status="site_ok")
+        assert "A empresa TEM um site" in prompt
+        assert "Não invente defeitos" in prompt
+        assert "NÃO possui site" not in prompt
+
+    def test_site_desconhecido_nao_presume_ausencia(self):
+        prompt = ia.montar_prompt_contato("Empresa X", "clínica", "Rua A", 4.8)
+        assert "A situação do site não foi confirmada" in prompt
+        assert "A empresa NÃO possui site" not in prompt
 
     def test_site_ruim_cita_problemas_e_oferece_reformulacao(self):
         prompt = ia.montar_prompt_contato(
@@ -303,6 +312,32 @@ class TestPromptContato:
         assert "105" in prompt
         assert "Cuiabá" in prompt
         assert "instagram.com/empresa_x" in prompt
+
+
+class TestAbordagemFLP:
+    def test_system_prioriza_previa_e_nao_promete_site_completo(self):
+        for canal in ("WhatsApp", "DM do Instagram"):
+            system = ia.montar_system_copywriter(canal)
+            assert "FLP Systems" in system
+            assert "sem custo e sem compromisso" in system
+            assert "não um site completo gratuito" in system
+            assert "Não afirme que a prévia já está pronta" in system
+
+    def test_contato_e_followup_nos_dois_canais(self):
+        prompts = [
+            ia.montar_prompt_contato("Empresa", "clínica", "Rua A", 4.8),
+            ia.montar_prompt_followup("Empresa", "clínica", "Rua A", 4.8, 1),
+            ia.montar_prompt_contato_instagram("empresa", "Empresa", "Bio", "clínica", ""),
+            ia.montar_prompt_followup_instagram("empresa", "Empresa", "Bio", "clínica", 1),
+        ]
+        for prompt in prompts:
+            assert "prévia" in prompt
+            assert "gratuita e sem compromisso" in prompt
+
+    def test_classificador_e_cockpit_alinhados(self):
+        for system in (ia.SYSTEM_CLASSIFICADOR, ia.SYSTEM_ANALISTA_CONVERSA):
+            assert "prévia visual personalizada" in system
+            assert "gratuita e sem compromisso" in system
 
 
 class TestPromptFollowup:
