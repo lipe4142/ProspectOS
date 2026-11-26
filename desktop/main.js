@@ -256,6 +256,20 @@ function registrarPonteWhatsapp() {
 /** Links que saem do app: WhatsApp vira janela interna, o resto abre no navegador. */
 function rotearLinksExternos(conteudo, porta) {
   conteudo.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith("whatsapp://")) {
+      try {
+        const destino = new URL(url);
+        const telefone = destino.searchParams.get("phone") || "";
+        if (destino.hostname !== "send" || !/^\d{8,15}$/.test(telefone)) throw new Error("Número inválido");
+        const texto = destino.searchParams.get("text") || "";
+        shell.openExternal(`whatsapp://send?phone=${telefone}&text=${encodeURIComponent(texto)}`).catch(() => {
+          dialog.showErrorBox("WhatsApp", "Não foi possível abrir o WhatsApp instalado. Confira se o aplicativo está instalado no Windows.");
+        });
+      } catch {
+        dialog.showErrorBox("WhatsApp", "Endereço de WhatsApp inválido.");
+      }
+      return { action: "deny" };
+    }
     if (REGEX_WHATSAPP.test(url)) {
       abrirWhatsapp(url);
       return { action: "deny" };
