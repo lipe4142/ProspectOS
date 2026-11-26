@@ -26,7 +26,7 @@ function SincronizarContatoWhatsapp() {
       if (dados && typeof dados === "object" && "contato_registrado" in dados && dados.contato_registrado === true) {
         toast.success("Mensagem enviada: lead marcado como contatado.")
       }
-      for (const chave of ["leads", "lead", "metricas", "metricas-combinadas", "follow-ups-hoje", "meta-semanal", "tarefas-hoje", "conversa", "historico-lead"]) {
+      for (const chave of ["leads", "lead", "metricas", "metricas-combinadas", "follow-ups-hoje", "meta-semanal", "tarefas-hoje", "conversa", "lead-historico"]) {
         queryClient.invalidateQueries({ queryKey: [chave] })
       }
     })
