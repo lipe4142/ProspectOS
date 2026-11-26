@@ -82,7 +82,7 @@ export function FerramentasComerciais({ lead }: { lead: Lead }) {
         <Button size="sm" variant={aba === "proposta" ? "default" : "outline"} disabled={ocupado} onClick={() => setAba(aba === "proposta" ? null : "proposta")}>Gerar proposta comercial</Button>
       </div>
       {aba === "demo" && <div className="space-y-3">
-        <p className="text-xs text-muted-foreground">Reúne os dados e links cadastrados. Complete com informações verificadas; não cria nem publica o site automaticamente.</p>
+        <p className="text-xs text-muted-foreground">Reúne os dados cadastrados e tenta consultar o conteúdo público do site atual. Complete identidade e serviços não confirmados; não cria nem publica o site automaticamente.</p>
         <label className="block text-sm">Identidade visual (cores, logo, estilo)
           <Textarea value={identidade} maxLength={4000} onChange={e => setIdentidade(e.target.value)} placeholder="Opcional: informações confirmadas da marca" />
         </label>
@@ -98,11 +98,11 @@ export function FerramentasComerciais({ lead }: { lead: Lead }) {
           <label className="block text-sm">Briefing
             <Textarea rows={6} value={demo.briefing} onChange={e => setDemo({ ...demo, briefing: e.target.value })} />
           </label>
-          <Button size="sm" variant="outline" onClick={() => copiar(demo.briefing)}>Copiar briefing</Button>
+          <Button size="sm" variant="outline" onClick={() => copiar(demo.briefing).then(() => toast.success("Briefing copiado.")).catch(() => toast.error("Não foi possível copiar."))}>Copiar briefing</Button>
           <label className="block text-sm">Prompt de desenvolvimento
             <Textarea rows={9} value={demo.prompt} onChange={e => setDemo({ ...demo, prompt: e.target.value })} />
           </label>
-          <Button size="sm" variant="outline" onClick={() => copiar(demo.prompt)}>Copiar prompt</Button>
+          <Button size="sm" variant="outline" onClick={() => copiar(demo.prompt).then(() => toast.success("Prompt copiado.")).catch(() => toast.error("Não foi possível copiar."))}>Copiar prompt</Button>
         </div>}
       </div>}
       {aba === "proposta" && <div className="space-y-3">

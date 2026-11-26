@@ -1,6 +1,8 @@
 """Ferramentas comerciais por lead do Google Maps, sem envio automático."""
 import io
 import json
+import logging
+import re
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
@@ -9,6 +11,10 @@ from fpdf import FPDF
 
 import db
 import ia
+import paths
+import processar
+
+logger = logging.getLogger(__name__)
 
 bp = Blueprint("comercial", __name__)
 
@@ -73,9 +79,17 @@ def demonstracao(place_id):
     except ValueError as exc:
         return jsonify(erro=str(exc)), 400
     contexto = _dados_empresa(lead)
+    # Reaproveita o coletor de conteúdo público já usado na geração de copy.
+    conteudo_site = None
+    if lead.get("site_url") and processar.dominio_e_proprio(lead["site_url"]):
+        try:
+            conteudo_site = processar.capturar_conteudo_site(lead["site_url"])
+        except Exception:
+            logger.warning("Não foi possível consultar o conteúdo público do site do lead.")
     briefing = (
         f"BRIEFING — {lead.get('nome')}\n"
         f"Dados cadastrados e diagnóstico (verificar antes de publicar):\n{contexto}\n\n"
+        f"Conteúdo público do site (não confirmado, validar identidade e serviços): {conteudo_site or 'Não disponível.'}\n\n"
         f"Identidade visual informada: {identidade or 'Não confirmada; consultar fontes oficiais da empresa.'}\n"
         f"Serviços informados: {servicos or 'Não confirmados; pesquisar e validar com a empresa.'}\n"
         f"Referências e materiais: {referencias or 'Consultar site e redes sociais oficiais acima.'}\n"
@@ -125,11 +139,24 @@ class PropostaPDF(FPDF):
         self.rect(0, 32, 210, 2, "F")
         self.set_xy(15, 8)
         self.set_text_color(255, 255, 255)
-        self.set_font("Helvetica", "B", 19)
-        self.cell(180, 8, "FLP SYSTEMS")
-        self.set_xy(15, 19)
-        self.set_font("Helvetica", "", 10)
-        self.cell(180, 5, "software com precisão")
+        # Usa o SVG original da marca, tanto no clone quanto no app empacotado.
+        logo = (paths.caminho_recurso("frontend_dist", "flp-systems-dark.svg")
+                if paths.EMPACOTADO else paths.DIR_RECURSOS.parent / "frontend" / "public" / "flp-systems-dark.svg")
+        try:
+            svg = logo.read_text(encoding="utf-8")
+            # O fpdf2 lida melhor com atributos fill do que com classes CSS do Illustrator.
+            cores = dict(re.findall(r"\.([A-Za-z0-9_-]+)\s*\{\s*fill:(#[0-9A-Fa-f]{6});?\s*\}", svg))
+            svg = re.sub(r'class="([^"]+)"', lambda m: f'fill="{cores[m[1]]}"' if m[1] in cores else m[0], svg)
+            svg = re.sub(r"<style[^>]*>.*?</style>", "", svg, flags=re.DOTALL)
+            self.image(io.BytesIO(svg.encode("utf-8")), x=15, y=6, w=58, h=21)
+        except Exception:
+            logger.warning("Logo SVG indisponível no PDF; usando assinatura textual.")
+            self.set_xy(15, 8)
+            self.set_font("Helvetica", "B", 19)
+            self.cell(180, 8, "FLP SYSTEMS")
+            self.set_xy(15, 19)
+            self.set_font("Helvetica", "", 10)
+            self.cell(180, 5, "software com precisão")
         self.set_y(41)
 
     def footer(self):

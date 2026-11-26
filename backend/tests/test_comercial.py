@@ -19,3 +19,19 @@ def test_rejeita_valores_invalidos(valor):
 
 def test_valor_decimal():
     assert _valor({"mensal": "90.50"}, "mensal") == Decimal("90.50")
+
+
+def test_demonstracao_sem_ia(monkeypatch):
+    from flask import Flask
+    import rotas_comercial as comercial
+    app = Flask(__name__)
+    app.register_blueprint(comercial.bp)
+    monkeypatch.setattr(comercial, "_lead", lambda _: {"nome": "Empresa Teste", "categoria": "Imobiliária"})
+    def falhar(*args, **kwargs):
+        raise comercial.ia.NenhumProvedorDisponivel(None)
+    monkeypatch.setattr(comercial.ia, "executar_com_fallback", falhar)
+    resposta = app.test_client().post("/api/leads/abc/demonstracao", json={"identidade": "Azul", "servicos": "Venda de imóveis"})
+    assert resposta.status_code == 200
+    assert "Empresa Teste" in resposta.json["briefing"]
+    assert "Venda de imóveis" in resposta.json["prompt"]
+    assert resposta.json["provedor"] is None
