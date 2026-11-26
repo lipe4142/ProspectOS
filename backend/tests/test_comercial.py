@@ -117,3 +117,17 @@ def test_prompt_demo_prioriza_site_estatico():
     assert "JavaScript nativo apenas quando indispensável" in prompt
     assert "Não use React" in prompt
     assert "index.html, style.css" in prompt
+
+
+def test_prompt_demo_direcao_criativa_e_aprovacao():
+    from rotas_comercial import _montar_prompt_demo
+    prompt = _montar_prompt_demo("Empresa exemplo")
+    assert "FASE 1" in prompt and "FASE 2" in prompt and "FASE 3" in prompt
+    assert "3 a 5 perguntas" in prompt
+    assert "no máximo 6 perguntas" in prompt
+    assert "Aguarde aprovação" in prompt
+    assert "prefers-reduced-motion" in prompt
+    assert "IntersectionObserver" in prompt
+    assert "Não use emojis" in prompt
+    assert "HTML5 semântico e CSS3 puro" in prompt
+    assert "Empresa exemplo" in prompt

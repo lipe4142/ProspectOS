@@ -123,7 +123,7 @@ export function FerramentasComerciais({ lead }: { lead: Lead }) {
         <Button size="sm" variant={aba === "proposta" ? "default" : "outline"} disabled={ocupado} onClick={() => setAba(aba === "proposta" ? null : "proposta")}>Gerar proposta comercial</Button>
       </div>
       {aba === "demo" && <div className="space-y-3">
-        <p className="text-xs text-muted-foreground">Reúne os dados cadastrados e tenta consultar o conteúdo público do site atual. Complete identidade e serviços não confirmados; não cria nem publica o site automaticamente.</p>
+        <p className="text-xs text-muted-foreground">Reúne os dados cadastrados e tenta consultar o conteúdo público do site atual. O prompt de direção criativa orienta a IA de desenvolvimento a inspecionar as páginas acessíveis, validar o briefing, apresentar o wireframe e aguardar aprovação antes de implementar. Complete identidade e serviços não confirmados. Este módulo não cria nem publica o site automaticamente.</p>
         <label className="block text-sm">Identidade visual (cores, logo, estilo)
           <Textarea value={identidade} maxLength={4000} onChange={e => setIdentidade(e.target.value)} placeholder="Opcional: informações confirmadas da marca" />
         </label>
