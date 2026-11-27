@@ -51,3 +51,49 @@ def test_cloudflare_missing_credentials(monkeypatch):
     monkeypatch.delenv("CLOUDFLARE_API_TOKEN",raising=False)
     with pytest.raises(cf.CloudflareError):
         cf.credentials()
+
+
+@pytest.mark.parametrize("used, expected", [(10, 200), (99, 200), (100, 400)])
+def test_ai_daily_unlimited_monthly_limit(tmp_path, monkeypatch, used, expected):
+    from flask import Flask
+    from contextlib import closing
+
+    db_path = tmp_path / "studio.db"
+
+    def connect():
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    monkeypatch.setattr(routes.db, "conectar", connect)
+    with closing(connect()) as conn:
+        routes.prepare(conn)
+        conn.executemany(
+            "INSERT INTO studio_ai_usage(project_id) VALUES (?)",
+            [("previous",)] * used,
+        )
+        conn.commit()
+
+    calls = []
+    def fake_ai(*args, **kwargs):
+        calls.append(True)
+        return studio.starter("Empresa"), "test", None
+
+    monkeypatch.setattr(routes.ia, "executar_com_fallback", fake_ai)
+    app = Flask(__name__)
+    app.register_blueprint(routes.bp)
+    app.config["TESTING"] = True
+    with app.test_client() as client:
+        created = client.post("/api/studio/projects", json={"name": "Empresa"})
+        assert created.status_code == 201
+        pid = created.get_json()["id"]
+        result = client.post(
+            f"/api/studio/projects/{pid}/ai",
+            json={"instruction": "Atualize o site", "confirm_cost": True},
+        )
+        assert result.status_code == expected
+        assert len(calls) == (1 if expected == 200 else 0)
+        summary = client.get("/api/studio/projects").get_json()
+        assert summary["requests_today"] == used + (1 if expected == 200 else 0)
+        if expected == 400:
+            assert "mensal" in result.get_json()["erro"]

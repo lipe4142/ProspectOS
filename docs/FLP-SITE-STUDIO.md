@@ -17,7 +17,7 @@ Branch: feat/flp-site-studio, baseada em feat/flp-ferramentas-comerciais.
 ## Limites atuais
 
 - Dez templates de grupos de nichos, sete tipos de seções, seis fontes do sistema, um site de uma página.
-- IA reutiliza Gemini/Groq/NVIDIA e fallback da plataforma, exige confirmação de cobrança potencial; limite fixo de 10 operações diárias e 100 mensais. Contagem é de operações, não de chamadas individuais nem tokens/faturamento.
+- IA reutiliza Gemini/Groq/NVIDIA e fallback da plataforma, exige confirmação de cobrança potencial; sem limite diário interno; mantém o limite de 100 operações mensais. Contagem é de operações, não de chamadas individuais nem tokens/faturamento.
 - Não há editor de código editável, canvas de arrastar elementos livres, animações avançadas, páginas múltiplas, biblioteca de fontes licenciadas, domínios próprios, custos detalhados, conta Cloudflare configurável pela interface, nem extração automática adicional de mídia. Use os recursos de análise de sites já existentes.
 - Projetos e versões permanecem no SQLite local. Não são excluídos registros existentes; migrações criam tabelas novas. A integração usa leads Google Maps.
 - Se um deploy for interrompido ou ficar pendente, confira a Cloudflare antes de repetir. Um projeto criado remotamente mas não gravado no banco pode precisar de conciliação manual.

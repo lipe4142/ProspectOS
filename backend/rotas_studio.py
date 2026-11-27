@@ -189,10 +189,9 @@ def generate(pid):
     with closing(db.conectar()) as conn:
         p = get_project(conn,pid)
         conn.execute("BEGIN IMMEDIATE")
-        daily = conn.execute("SELECT COUNT(*) FROM studio_ai_usage WHERE date(created_at)=date('now')").fetchone()[0]
         monthly = conn.execute("SELECT COUNT(*) FROM studio_ai_usage WHERE strftime('%Y-%m',created_at)=strftime('%Y-%m','now')").fetchone()[0]
-        if daily >= 10 or monthly >= 100:
-            raise ValueError("Limite de operações de IA (10/dia, 100/mês) atingido.")
+        if monthly >= 100:
+            raise ValueError("Limite mensal de operações de IA (100/mês) atingido.")
         cur = conn.execute("INSERT INTO studio_ai_usage(project_id) VALUES(?)",(pid,))
         usage_id = cur.lastrowid
         conn.commit()
