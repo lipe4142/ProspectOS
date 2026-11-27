@@ -24,6 +24,9 @@ def prepare(conn):
       id INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL REFERENCES studio_projects(id),
       model TEXT NOT NULL, label TEXT NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE TABLE IF NOT EXISTS studio_sent (
+      project_id TEXT PRIMARY KEY REFERENCES studio_projects(id), sent_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
     CREATE TABLE IF NOT EXISTS studio_ai_usage (
       id INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL, provider TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -38,6 +41,8 @@ def get_project(conn, pid):
         raise LookupError("Projeto não encontrado.")
     data = dict(row)
     data["model"] = json.loads(data["model"])
+    sent = conn.execute("SELECT sent_at FROM studio_sent WHERE project_id=?", (pid,)).fetchone()
+    data["sent_at"] = sent["sent_at"] if sent else None
     return data
 
 
@@ -77,8 +82,8 @@ def save(conn, p, model, label, template=None, provider=None):
 @bp.get("/projects")
 def projects():
     with closing(db.conectar()) as conn:
-        rows = conn.execute("""SELECT id,lead_id,name,template,status,url,updated_at
-          FROM studio_projects ORDER BY updated_at DESC""").fetchall()
+        rows = conn.execute("""SELECT p.id,p.lead_id,p.name,p.template,p.status,p.url,p.updated_at,s.sent_at
+          FROM studio_projects p LEFT JOIN studio_sent s ON s.project_id=p.id ORDER BY p.updated_at DESC""").fetchall()
         usage = conn.execute("SELECT COUNT(*) FROM studio_ai_usage WHERE date(created_at)=date('now')").fetchone()[0]
         return jsonify(projects=[dict(r) for r in rows], templates={k:v[0] for k,v in studio.TEMPLATES.items()},
                        fonts=studio.FONTS, kinds=studio.KINDS, requests_today=usage)
@@ -264,3 +269,28 @@ def publish(pid):
             conn.execute("UPDATE studio_projects SET status='erro_publicacao' WHERE id=?",(pid,))
             conn.commit()
             return jsonify(erro=str(exc) if isinstance(exc,cf.CloudflareError) else "Falha na publicação. Confira dependências e painel Cloudflare."),502
+
+
+@bp.post("/projects/<pid>/sent")
+def confirm_sent(pid):
+    from datetime import datetime
+    if payload().get("confirmed") is not True:
+        raise ValueError("Confirme apenas após enviar a demonstração.")
+    with closing(db.conectar()) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        p = get_project(conn,pid)
+        if not p["url"] or p["status"] != "publicado" or not p["lead_id"]:
+            raise ValueError("Publique o projeto vinculado a um lead antes de registrar o envio.")
+        if p["sent_at"]:
+            return jsonify(p)
+        lead = conn.execute("SELECT status FROM leads WHERE place_id=?",(p["lead_id"],)).fetchone()
+        if not lead:
+            raise LookupError("Lead não encontrado.")
+        now = datetime.now().isoformat(timespec="seconds")
+        if lead["status"] == "novo":
+            conn.execute("UPDATE leads SET status='contatado',atualizado_em=? WHERE place_id=?",(now,p["lead_id"]))
+            conn.execute("INSERT INTO historico_status(place_id,status_anterior,status_novo,alterado_em) VALUES(?,?,?,?)",
+                         (p["lead_id"],"novo","contatado",now))
+        conn.execute("INSERT INTO studio_sent(project_id) VALUES(?)",(pid,))
+        conn.commit()
+        return jsonify(get_project(conn,pid))
