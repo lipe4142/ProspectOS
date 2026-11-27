@@ -1,5 +1,4 @@
-import { useEffect } from "react"
-import { SiteStudioPage } from "@/pages/SiteStudioPage"
+import { lazy, Suspense, useEffect } from "react"
 import { toast } from "sonner"
 import { BrowserRouter, Route, Routes } from "react-router-dom"
 import { QueryClientProvider } from "@tanstack/react-query"
@@ -18,6 +17,8 @@ import { InstagramAnalyticsPage } from "@/pages/InstagramAnalyticsPage"
 import { InstagramArquivadosPage } from "@/pages/InstagramArquivadosPage"
 import { ConfiguracoesPage } from "@/pages/ConfiguracoesPage"
 import { DocumentacaoPage } from "@/pages/DocumentacaoPage"
+
+const SiteStudioPage = lazy(() => import("@/pages/SiteStudioPage"))
 
 function SincronizarContatoWhatsapp() {
   useEffect(() => {
@@ -44,7 +45,11 @@ export default function App() {
           <PaletaComando />
           <Routes>
             <Route path="/" element={<DashboardPage />} />
-            <Route path="/site-studio" element={<SiteStudioPage />} />
+            <Route path="/site-studio" element={
+              <Suspense fallback={<p className="p-6 text-sm text-muted-foreground" role="status">Carregando o Estúdio…</p>}>
+                <SiteStudioPage />
+              </Suspense>
+            } />
             <Route path="/tarefas" element={<TarefasPage />} />
             <Route path="/sessao" element={<SessaoProspeccaoPage />} />
             <Route path="/leads" element={<LeadsMapsPage />} />
