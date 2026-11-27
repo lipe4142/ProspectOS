@@ -174,6 +174,11 @@ class TestFiltroFollowupVencido:
 class TestReanalisarSite:
     def test_reanalisa_lead_com_site(self, cliente, monkeypatch):
         import processar
+        import ia
+        import sys
+        # Sem navegador ou IA externos: a ausência de evidência deve ser inconclusiva.
+        monkeypatch.setitem(sys.modules, "playwright.sync_api", None)
+        monkeypatch.setattr(ia, "resumir_diagnostico_site", lambda *args: None)
         monkeypatch.setattr(
             processar, "avaliar_site_completo",
             lambda url: ("ruim", ["sem HTTPS"], {"tem": ["fotos do negócio"], "falta": ["botão de WhatsApp"]}),
@@ -188,13 +193,19 @@ class TestReanalisarSite:
         dados = resposta.get_json()
         assert resposta.status_code == 200
         assert dados["site_status"] == "site_ruim"
-        assert dados["site_checklist"]["falta"] == ["botão de WhatsApp"]
+        assert dados["site_checklist"]["falta"] == []
+        assert "botão de WhatsApp" in dados["site_checklist"]["nao_confirmado"]
 
         lead = cliente.get("/api/leads?status=novo").get_json()["leads"][0]
-        assert lead["site_checklist"]["falta"] == ["botão de WhatsApp"]
+        assert lead["site_checklist"]["falta"] == []
+        assert "botão de WhatsApp" in lead["site_checklist"]["nao_confirmado"]
 
     def test_site_que_melhorou_vira_site_ok(self, cliente, monkeypatch):
         import processar
+        import ia
+        import sys
+        monkeypatch.setitem(sys.modules, "playwright.sync_api", None)
+        monkeypatch.setattr(ia, "resumir_diagnostico_site", lambda *args: None)
         monkeypatch.setattr(
             processar, "avaliar_site_completo", lambda url: ("ok", [], {"tem": ["botão de WhatsApp"], "falta": []})
         )
