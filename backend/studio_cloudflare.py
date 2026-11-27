@@ -90,8 +90,8 @@ def deploy(name, assets):
                 raise CloudflareError("A API não retornou um subdomínio Pages válido.")
             url = "https://"+domain
             try:
-                response = requests.get(url, timeout=(5,10),allow_redirects=False)
-                if response.status_code == 200:
+                response = requests.get(url, params={"flp_deploy":deploy_id}, timeout=(5,10),allow_redirects=False)
+                if response.status_code == 200 and response.content == assets["index.html"]:
                     return url,deploy_id
             except requests.RequestException:
                 pass
