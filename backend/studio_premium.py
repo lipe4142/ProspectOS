@@ -46,7 +46,7 @@ def contrast(a,b):
 
 
 def ink(color):
-    return "#101010" if luminance(color) > .179 else "#ffffff"
+    return "#000000" if luminance(color) > .179 else "#ffffff"
 
 
 def art(style):
@@ -115,7 +115,8 @@ def render(m, preview=False):
     phone=m["phone"]
     if len(phone) in (10,11): phone="55"+phone
     has_phone=12<=len(phone)<=15
-    link="https://wa.me/"+phone if has_phone and not preview else "#contato"
+    contact_index=next((i for i,s in enumerate(m["sections"]) if s["kind"]=="contact"),0)
+    link="https://wa.me/"+phone if has_phone and not preview else "#s"+str(contact_index)
     def button(label="", secondary=False):
         return '<a class="btn'+(' secondary' if secondary else '')+'" href="'+link+'">'+esc(label or ("Fale pelo WhatsApp" if has_phone else "Entre em contato"))+' <span aria-hidden="true">↗</span></a>'
     nav="".join('<a href="#s%d">%s</a>'%(i,esc(LABELS[s["kind"]])) for i,s in enumerate(m["sections"]) if s["kind"] not in ("hero","cta"))
@@ -123,6 +124,9 @@ def render(m, preview=False):
     for i,s in enumerate(m["sections"]):
         kind=s["kind"]; variant=s.get("variant","auto"); title=esc(s["title"]); body=esc(s["body"]); surface=s.get("surface","normal")
         eyebrow=esc(s.get("eyebrow") or (m["title"] if kind=="hero" else LABELS[kind]))
+        if variant=="auto" and kind!="hero":
+            variant = {"services":"list" if style in ("luxury","editorial") else "bento" if style=="bento" else "grid",
+                       "benefits":"grid","process":"list","faq":"center","gallery":"cover","products":"grid","about":"split"}.get(kind,"auto")
         label=s.get("cta","")
         p='<p>'+body+'</p>' if body else ""
         pic=photo(s,style,hero=kind=="hero")
@@ -130,7 +134,7 @@ def render(m, preview=False):
         if kind=="hero":
             c=button(label) if has_phone or any(x["kind"]=="contact" for x in m["sections"]) else ""
             secondary='<a class="btn secondary" href="#s'+str(i+1)+'">Conhecer mais ↓</a>' if i+1<len(m["sections"]) else ""
-            out.append(f'<section id="s{i}" class="hero variant-{variant} {"has-photo" if pic else ""}"><div class="shell"><div class="copy">{kick}<h1>{title}</h1>{p}<div class="actions">{c}{secondary}</div></div>{pic or art(style)}</div></section>')
+            out.append(f'<section id="s{i}" class="hero variant-{variant} surface-{surface} {"has-photo" if pic else ""}"><div class="shell"><div class="copy">{kick}<h1>{title}</h1>{p}<div class="actions">{c}{secondary}</div></div>{pic}</div></section>')
         elif kind in ("contact","cta","location"):
             anchor='<span id="contato"></span>' if kind=="contact" else ""
             out.append(f'<section id="s{i}" class="section variant-{variant} surface-{surface}"><div class="shell">{anchor}<div class="contact-box">{kick}<h2>{title}</h2>{p}<div class="actions">{button(label) if has_phone else ""}</div>{pic}</div></div></section>')
@@ -138,8 +142,8 @@ def render(m, preview=False):
             components=cards(s,kind)
             if components:
                 inner=f'<div class="intro"><div>{kick}<h2>{title}</h2></div>{p if s.get("items") else ""}</div>{components}{pic}'
-            elif pic or kind=="about":
-                inner=f'<div class="split"><div>{kick}<h2>{title}</h2>{p}</div>{pic or art(style)}</div>'
+            elif pic:
+                inner=f'<div class="split"><div>{kick}<h2>{title}</h2>{p}</div>{pic}</div>'
             else:
                 inner=f'<div class="intro"><div>{kick}<h2>{title}</h2></div>{p}</div>'
             out.append(f'<section id="s{i}" class="section variant-{variant} kind-{kind} surface-{surface}"><div class="shell">{inner}</div></section>')
