@@ -7,6 +7,7 @@ from flask import Blueprint, jsonify, request, send_file
 import db
 import ia
 import site_studio as studio
+import studio_photos as photos
 from rotas_comercial import _dados_empresa, _sugestoes_nicho
 
 bp = Blueprint("site_studio", __name__, url_prefix="/api/studio")
@@ -238,6 +239,10 @@ def generate(pid):
             if mode == "section":
                 original = p["model"]["sections"][selected]
                 output["image"] = original["image"]
+                output["image_credit"] = original["image_credit"]
+                output["image_source"] = original["image_source"]
+                if original["image"]:
+                    output["image_alt"] = original["image_alt"]
                 output["kind"] = original["kind"]
                 result = json.loads(json.dumps(p["model"]))
                 result["sections"][selected] = {**original, **output}
@@ -246,6 +251,8 @@ def generate(pid):
             available = list(p["model"]["sections"])
             for s in output.get("sections",[]):
                 s["image"] = ""
+                s["image_credit"] = ""
+                s["image_source"] = ""
                 matches = [old for old in available if old["kind"] == s.get("kind") and old["title"] == s.get("title")]
                 if not matches:
                     candidates = [old for old in available if old["kind"] == s.get("kind")]
@@ -256,6 +263,8 @@ def generate(pid):
                     s["image"]=old["image"]
                     if old["image"]:
                         s["image_alt"]=old["image_alt"]
+                        s["image_credit"]=old["image_credit"]
+                        s["image_source"]=old["image_source"]
                     available.remove(old)
             result = studio.validate(output)
             if mode == "generate" and (len(result["sections"]) < 5 or len({s["kind"] for s in result["sections"]})<4 or result["sections"][0]["kind"]!="hero"):
@@ -339,3 +348,16 @@ def confirm_sent(pid):
         conn.execute("INSERT INTO studio_sent(project_id) VALUES(?)",(pid,))
         conn.commit()
         return jsonify(get_project(conn,pid))
+
+
+@bp.get("/photos")
+def photo_search():
+    return jsonify(photos.search(request.args.get("q","")))
+
+
+@bp.post("/photos/import")
+def photo_import():
+    data = payload()
+    if data.get("confirmed") is not True:
+        raise ValueError("Confirme a utilização como imagem ilustrativa.")
+    return jsonify(photos.import_photo(data.get("id")))
