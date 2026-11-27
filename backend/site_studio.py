@@ -7,7 +7,7 @@ from io import BytesIO
 from zipfile import ZipFile, ZIP_DEFLATED
 import studio_premium as premium
 
-FONTS = ["Arial", "Georgia", "Verdana", "Tahoma", "Trebuchet MS", "system-ui"]
+FONTS = ["Arial", "Georgia", "Verdana", "Tahoma", "Trebuchet MS", "system-ui", "Palatino Linotype", "Times New Roman", "Century Gothic"]
 TEMPLATES = {
     "solar": ("Energia solar", "#f5b728", "#10251f", "#f5f7eb", "industrial"),
     "imoveis": ("Imobiliário", "#ae8c61", "#f0ede6", "#272d26", "editorial"),
@@ -80,6 +80,11 @@ def validate(model):
     if layout not in STYLES:
         raise ValueError("Layout inválido.")
     result["theme"]["layout"] = layout
+    for key, options, default in (("heading_font", FONTS+["auto"], "auto"), ("spacing", ["compact","balanced","airy"], "balanced"), ("corners", ["auto","square","soft","round"], "auto")):
+        value = theme.get(key,default)
+        if value not in options:
+            raise ValueError("Direção visual inválida.")
+        result["theme"][key] = value
     sections = model.get("sections")
     if not isinstance(sections, list) or not 1 <= len(sections) <= 20:
         raise ValueError("Inclua de 1 a 20 seções.")
@@ -93,7 +98,7 @@ def validate(model):
         if not isinstance(items, list) or len(items) > 12 or any(not isinstance(x,dict) for x in items):
             raise ValueError("Lista de componentes inválida.")
         source = txt(item.get("image_source", ""), 200)
-        if source and not re.fullmatch(r"https://www\.pexels\.com/photo/[0-9]+/",source):
+        if source and not (re.fullmatch(r"https://www\.pexels\.com/photo/[0-9]+/",source) or re.fullmatch(r"https://(?:www\.)?pixabay\.com/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+/?",source)):
             raise ValueError("Fonte de imagem inválida.")
         result["sections"].append({
             "kind": item["kind"], "title": txt(item.get("title", ""), 160),
@@ -101,6 +106,7 @@ def validate(model):
             "eyebrow": txt(item.get("eyebrow", ""), 100), "cta": txt(item.get("cta", ""), 60),
             "image_alt": txt(item.get("image_alt", ""), 200), "variant": variant,
             "image_source": source, "image_credit": txt(item.get("image_credit", ""), 100),
+            "surface": item.get("surface","normal") if item.get("surface","normal") in ("normal","accent","contrast","soft") else "normal",
             "items": [{"title": txt(x.get("title", ""), 160), "body": txt(x.get("body", ""), 500)} for x in items],
         })
     if len(json.dumps(result)) > 8_000_000:
@@ -136,6 +142,8 @@ def quality(model):
         ("Textos preenchidos", all(s["title"] and (s["body"] or s["items"]) for s in sections)),
         ("Conteúdo sem instruções de edição", not any("a ser personalizada" in s["body"].lower() or "a confirmar" in s["body"].lower() for s in sections)),
         ("Texto alternativo das imagens", all(not s["image"] or s["image_alt"] for s in sections)),
+        ("Contraste de texto WCAG AA", premium.contrast(m["theme"]["background"],m["theme"]["text"])>=4.5),
+        ("Variação de composição", len({s["variant"] for s in sections})>=3),
     ]
     return [{"label": label, "passed": passed} for label, passed in checks]
 
