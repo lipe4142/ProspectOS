@@ -60,7 +60,7 @@ def test_premium_styles(layout):
     model["theme"]["layout"]=layout
     doc=studio.render(model,preview=True)
     assert 'class="style-'+layout+' ' in doc
-    assert "FLP / DIREÇÃO VISUAL" in doc
+    assert "FLP / DIREÇÃO VISUAL" not in doc
     assert "prefers-reduced-motion" in doc
     assert "Content-Security-Policy" in doc
     assert "<script" not in doc
