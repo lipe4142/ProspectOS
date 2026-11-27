@@ -51,3 +51,53 @@ def test_cloudflare_missing_credentials(monkeypatch):
     monkeypatch.delenv("CLOUDFLARE_API_TOKEN",raising=False)
     with pytest.raises(cf.CloudflareError):
         cf.credentials()
+
+
+@pytest.mark.parametrize("layout",["split","editorial","center","cinematic","industrial","organic","brutalist","luxury","bento"])
+def test_premium_styles(layout):
+    model=studio.starter("Empresa de teste")
+    model["theme"]["layout"]=layout
+    doc=studio.render(model,preview=True)
+    assert 'class="style-'+layout+'"' in doc
+    assert "FLP / DIREÇÃO VISUAL" in doc
+    assert "prefers-reduced-motion" in doc
+    assert "Content-Security-Policy" in doc
+    assert "<script" not in doc
+
+
+def test_premium_components_and_quality():
+    model=studio.starter("Empresa")
+    model["sections"].insert(1,{"kind":"services","title":"Serviços","body":"", "variant":"bento",
+        "items":[{"title":"<img src=x>","body":"Descrição"}]})
+    model["sections"].insert(2,{"kind":"faq","title":"Perguntas","body":"",
+        "items":[{"title":"Como entrar em contato?","body":"Pelos canais disponíveis."}]})
+    doc=studio.render(model)
+    assert 'variant-bento' in doc and '<details>' in doc
+    assert '&lt;img src=x&gt;' in doc
+    assert any(x["label"]=="Imagem principal autorizada" and not x["passed"] for x in studio.quality(model))
+
+
+def test_invalid_variant_and_credit_url():
+    model=studio.starter("Empresa")
+    model["sections"][0]["variant"]="bad"
+    with pytest.raises(ValueError):
+        studio.validate(model)
+    model["sections"][0]["variant"]="auto"
+    model["sections"][0]["image_source"]="javascript:alert(1)"
+    with pytest.raises(ValueError):
+        studio.validate(model)
+
+
+def test_legacy_model_defaults():
+    model=studio.starter("Empresa")
+    for s in model["sections"]:
+        for key in ("variant","eyebrow","cta","items","image_alt","image_source","image_credit"):
+            s.pop(key)
+    assert studio.validate(model)["sections"][0]["variant"]=="auto"
+
+
+def test_photo_integration_requires_key(monkeypatch):
+    import studio_photos
+    monkeypatch.delenv("PEXELS_API_KEY",raising=False)
+    with pytest.raises(ValueError,match="PEXELS_API_KEY"):
+        studio_photos.search("arquitetura")
