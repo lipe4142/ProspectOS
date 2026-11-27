@@ -5,21 +5,35 @@ import json
 import re
 from io import BytesIO
 from zipfile import ZipFile, ZIP_DEFLATED
+import studio_premium as premium
 
-FONTS = ["Arial", "Georgia", "Verdana", "Tahoma", "Trebuchet MS", "system-ui"]
+FONTS = ["Arial", "Georgia", "Verdana", "Tahoma", "Trebuchet MS", "system-ui", "Palatino Linotype", "Times New Roman", "Century Gothic"]
 TEMPLATES = {
-    "solar": ("Energia solar", "#f9b233", "#142b25", "#ffffff", "split"),
-    "imoveis": ("Imobiliário", "#b89562", "#172523", "#ffffff", "editorial"),
-    "advocacia": ("Advocacia", "#d4b179", "#182538", "#ffffff", "editorial"),
-    "engenharia": ("Engenharia", "#ff6a00", "#141820", "#ffffff", "split"),
-    "saude": ("Saúde e odontologia", "#047d79", "#f4fafa", "#173b3b", "split"),
-    "educacao": ("Educação", "#7144c7", "#f7f4ff", "#241c39", "center"),
-    "beleza": ("Beleza e estética", "#af627c", "#fff4f5", "#39252d", "editorial"),
-    "restaurante": ("Restaurante", "#d99b56", "#241810", "#fff5e8", "center"),
-    "tecnologia": ("Tecnologia", "#ff6a00", "#090909", "#ffffff", "split"),
-    "servicos": ("Serviços", "#145dbf", "#f4f7fb", "#16243b", "center"),
+    "solar": ("Energia solar", "#f5b728", "#10251f", "#f5f7eb", "industrial"),
+    "imoveis": ("Imobiliário", "#ae8c61", "#f0ede6", "#272d26", "editorial"),
+    "advocacia": ("Advocacia", "#d4b179", "#182538", "#ffffff", "luxury"),
+    "engenharia": ("Engenharia", "#ff7936", "#141820", "#ffffff", "industrial"),
+    "saude": ("Saúde e odontologia", "#047d79", "#f4fafa", "#173b3b", "bento"),
+    "educacao": ("Educação", "#7144c7", "#f7f4ff", "#241c39", "bento"),
+    "beleza": ("Beleza e estética", "#a44b68", "#fff4f5", "#39252d", "organic"),
+    "restaurante": ("Restaurante", "#db3e29", "#fff0e8", "#261813", "brutalist"),
+    "tecnologia": ("Tecnologia", "#ff6a00", "#090909", "#ffffff", "bento"),
+    "servicos": ("Serviços", "#145dbf", "#f4f7fb", "#16243b", "split"),
+    "barbearia": ("Barbearia", "#bf4035", "#161616", "#f5f1e8", "cinematic"),
+    "arquitetura": ("Arquitetura", "#a38b71", "#efebe4", "#34332d", "editorial"),
+    "produtora": ("Produtora audiovisual", "#c6ee45", "#111111", "#f8f8f8", "brutalist"),
+    "tatuagem": ("Estúdio de tatuagem", "#e14c3d", "#f4efe5", "#141414", "brutalist"),
+    "confeitaria": ("Confeitaria", "#ac765b", "#fff9f1", "#33231e", "luxury"),
+    "academia": ("Academia", "#cdeb36", "#101214", "#ffffff", "industrial"),
+    "oficina": ("Oficina mecânica", "#eb612b", "#161a1d", "#ffffff", "industrial"),
+    "loja": ("Loja e catálogo", "#3b5eaa", "#f7f5ef", "#1c222b", "bento"),
+    "escola": ("Escola", "#285fbc", "#fff9ed", "#233047", "organic"),
+    "clinica": ("Clínica", "#267f71", "#f5faf7", "#17372f", "center"),
 }
-KINDS = ("hero", "about", "services", "gallery", "faq", "contact", "cta")
+KINDS = tuple(premium.LABELS)
+STYLES = premium.STYLES
+VARIANTS = premium.VARIANTS
+
 
 
 def txt(value, limit=4000):
@@ -63,18 +77,37 @@ def validate(model):
         raise ValueError("Fonte não suportada.")
     result["theme"]["font"] = font
     layout = theme.get("layout", "split")
-    if layout not in ("split", "editorial", "center"):
+    if layout not in STYLES:
         raise ValueError("Layout inválido.")
     result["theme"]["layout"] = layout
+    for key, options, default in (("heading_font", FONTS+["auto"], "auto"), ("spacing", ["compact","balanced","airy"], "balanced"), ("corners", ["auto","square","soft","round"], "auto")):
+        value = theme.get(key,default)
+        if value not in options:
+            raise ValueError("Direção visual inválida.")
+        result["theme"][key] = value
     sections = model.get("sections")
     if not isinstance(sections, list) or not 1 <= len(sections) <= 20:
         raise ValueError("Inclua de 1 a 20 seções.")
     for item in sections:
         if not isinstance(item, dict) or item.get("kind") not in KINDS:
             raise ValueError("Componente inválido.")
+        variant = item.get("variant", "auto")
+        if variant not in VARIANTS:
+            raise ValueError("Composição inválida.")
+        items = item.get("items", [])
+        if not isinstance(items, list) or len(items) > 12 or any(not isinstance(x,dict) for x in items):
+            raise ValueError("Lista de componentes inválida.")
+        source = txt(item.get("image_source", ""), 200)
+        if source and not (re.fullmatch(r"https://www\.pexels\.com/photo/[0-9]+/",source) or re.fullmatch(r"https://(?:www\.)?pixabay\.com/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+/?",source)):
+            raise ValueError("Fonte de imagem inválida.")
         result["sections"].append({
             "kind": item["kind"], "title": txt(item.get("title", ""), 160),
             "body": txt(item.get("body", "")), "image": image(item.get("image", "")),
+            "eyebrow": txt(item.get("eyebrow", ""), 100), "cta": txt(item.get("cta", ""), 60),
+            "image_alt": txt(item.get("image_alt", ""), 200), "variant": variant,
+            "image_source": source, "image_credit": txt(item.get("image_credit", ""), 100),
+            "surface": item.get("surface","normal") if item.get("surface","normal") in ("normal","accent","contrast","soft") else "normal",
+            "items": [{"title": txt(x.get("title", ""), 160), "body": txt(x.get("body", ""), 500)} for x in items],
         })
     if len(json.dumps(result)) > 8_000_000:
         raise ValueError("Projeto excede 8 MB.")
@@ -87,42 +120,32 @@ def starter(name, phone="", template="servicos"):
     _, primary, background, text, layout = TEMPLATES[template]
     return validate({"title": name, "description": "", "phone": phone,
                      "theme": {"primary": primary, "background": background, "text": text, "font": "system-ui", "layout": layout},
-                     "sections": [{"kind": "hero", "title": name, "body": "Conheça nossa empresa.", "image": ""},
-                                  {"kind": "contact", "title": "Entre em contato", "body": "", "image": ""}]})
+                     "sections": [{"kind": "hero", "title": name, "body": "Conheça nossa empresa.", "image": "", "eyebrow": TEMPLATES[template][0]},
+                                  {"kind": "about", "title": "Conheça a empresa", "body": "Apresentação a ser personalizada com as informações confirmadas da empresa.", "image": ""},
+                                  {"kind": "contact", "title": "Vamos conversar?", "body": "", "image": ""}]})
 
 
 def render(model, preview=False):
+    return premium.render(validate(model), preview=preview)
+
+
+def quality(model):
+    """Diagnóstico heurístico, não substitui teste visual nem aprovação humana."""
     m = validate(model)
-    e = html.escape
-    t = m["theme"]
-    phone = m["phone"]
-    if len(phone) in (10, 11):
-        phone = "55" + phone
-    cta = ('<a class="cta" href="https://wa.me/' + phone + '">Fale pelo WhatsApp</a>') if not preview and 12 <= len(phone) <= 15 else ""
-    nav = "".join('<a href="#s%d">%s</a>' % (i, e(s["title"])) for i, s in enumerate(m["sections"]) if s["title"])
-    parts = []
-    for i, s in enumerate(m["sections"]):
-        heading = "h1" if i == 0 else "h2"
-        pic = '<img alt="" loading="lazy" src="' + e(s["image"], quote=True) + '">' if s["image"] else ""
-        parts.append(f'<section id="s{i}" class="{s["kind"]}"><div><{heading}>{e(s["title"])}</{heading}><p>{e(s["body"])}</p>{cta if s["kind"] in ("hero","contact","cta") else ""}</div>{pic}</section>')
-    css = f":root{{--primary:{t['primary']};--bg:{t['background']};--text:{t['text']};font-family:{t['font']},sans-serif}}"
-    css += """
-*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text)}
-header,main,footer{max-width:1320px;margin:auto;padding:24px clamp(20px,6vw,96px)}header{display:flex;align-items:center;gap:24px;justify-content:space-between;flex-wrap:wrap;border-bottom:1px solid color-mix(in srgb,var(--text) 15%,transparent)}
-nav{display:flex;gap:16px;flex-wrap:wrap}a{color:inherit;text-decoration:none}a:focus-visible{outline:3px solid var(--primary);outline-offset:5px}
-section{padding:clamp(40px,8vw,110px) 0;border-bottom:1px solid color-mix(in srgb,var(--text) 15%,transparent);display:grid;gap:32px;align-items:center}
-section:has(img){grid-template-columns:1fr 1fr}h1,h2{margin:0 0 20px;line-height:1.05;letter-spacing:-.04em}h1{font-size:clamp(42px,7vw,100px)}h2{font-size:clamp(28px,4vw,58px)}
-p{white-space:pre-line;line-height:1.75;max-width:64ch;font-size:clamp(16px,1.4vw,21px)}img{width:100%;max-height:560px;object-fit:cover;border-radius:20px}
-.hero{min-height:58vh;border-top:4px solid var(--primary)}.cta{display:inline-block;padding:15px 24px;border:2px solid var(--primary);border-radius:999px;font-weight:700;transition:transform .2s}
-.cta:hover{transform:translateY(-3px)}.center section{text-align:center;grid-template-columns:1fr}.center p{margin-inline:auto}.editorial section:nth-child(even):has(img)>img{order:-1}
-footer{font-size:13px;opacity:.8}@media(max-width:720px){section:has(img){grid-template-columns:1fr}.editorial section:nth-child(even):has(img)>img{order:0}}
-@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
-"""
-    return ('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-            '<meta name="robots" content="noindex,nofollow"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data:; base-uri \'none\'; form-action \'none\'">'
-            '<title>' + e(m["title"]) + '</title><meta name="description" content="' + e(m["description"], quote=True) + '"><style>' + css +
-            '</style></head><body class="' + t["layout"] + '"><header><strong>' + e(m["title"]) + '</strong><nav>' + nav +
-            '</nav></header><main>' + "".join(parts) + '</main><footer>Projeto demonstrativo desenvolvido pela FLP Systems.</footer></body></html>')
+    sections = m["sections"]
+    checks = [
+        ("Abertura clara", sum(s["kind"] == "hero" for s in sections)==1 and bool(sections[0]["title"]) and sections[0]["kind"]=="hero"),
+        ("Estrutura completa", len(sections)>=5 and len({s["kind"] for s in sections})>=4),
+        ("Imagem principal autorizada", bool(sections[0]["image"])),
+        ("Descrição SEO", len(m["description"])>=40),
+        ("Canal comercial informado", 10<=len(m["phone"])<=15),
+        ("Textos preenchidos", all(s["title"] and (s["body"] or s["items"]) for s in sections)),
+        ("Conteúdo sem instruções de edição", not any("a ser personalizada" in s["body"].lower() or "a confirmar" in s["body"].lower() for s in sections)),
+        ("Texto alternativo das imagens", all(not s["image"] or s["image_alt"] for s in sections)),
+        ("Contraste de texto WCAG AA", premium.contrast(m["theme"]["background"],m["theme"]["text"])>=4.5),
+        ("Variação de composição", len({s["variant"] for s in sections})>=3),
+    ]
+    return [{"label": label, "passed": passed} for label, passed in checks]
 
 
 def files(model):
