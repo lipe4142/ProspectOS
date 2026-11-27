@@ -1,0 +1,53 @@
+import {useEffect,useState} from "react"
+
+type Plan={title:string;headline:string;description:string;primary:string;background:string;text:string;font:string;features:string[];solar:boolean;provider:string}
+type Project={prompt:string;plan:Plan;revision:number;assets:{name:string;bytes:number}[];coverage:{requirements:{title:string;characters:number;modules:string[]}[];modules:{key:string;label:string;enabled:boolean}[];missing_assets:string[];references:string[];notes:string[]}}
+type Audit={label:string;width:number;passed:boolean;documentWidth:number;overflow:string[];brokenImages:number;screenshot:string}
+const field="w-full rounded-lg border border-white/15 bg-[#161616] p-2 text-sm text-white"
+const button="rounded-lg border border-white/15 px-3 py-2 text-sm hover:bg-white/10 disabled:opacity-40"
+const primary=button+" bg-orange-500 text-black font-semibold"
+async function request<T>(path:string,method="GET",body?:unknown):Promise<T>{
+ const r=await fetch(path,{method,...(body instanceof FormData?{body}:{headers:{"Content-Type":"application/json"},...(body===undefined?{}:{body:JSON.stringify(body)})})})
+ const d=await r.json();if(!r.ok)throw new Error(d.erro||"Falha na operação");return d as T
+}
+export function AdvancedStudio({id,briefing}:{id:string;briefing:string}){
+ const root="/api/studio/projects/"+id+"/advanced"
+ const [prompt,setPrompt]=useState(briefing)
+ const [project,setProject]=useState<Project|null>(null)
+ const [plan,setPlan]=useState<Plan|null>(null)
+ const [preview,setPreview]=useState("")
+ const [model,setModel]=useState("qwen2.5-coder:7b")
+ const [busy,setBusy]=useState(false)
+ const [error,setError]=useState("")
+ const [notice,setNotice]=useState("")
+ const [width,setWidth]=useState("100%")
+ const [audits,setAudits]=useState<Audit[]>([])
+ const [published,setPublished]=useState("")
+ const [authorized,setAuthorized]=useState(false)
+ const [upload,setUpload]=useState<File|null>(null)
+ const [review,setReview]=useState(false)
+ const [acceptMissing,setAcceptMissing]=useState(false)
+ const dirty=!!(project&&plan&&JSON.stringify(project.plan)!==JSON.stringify(plan))
+ const adopt=async(p:Project)=>{setProject(p);setPlan(p.plan);setPrompt(p.prompt);setAudits([]);setReview(false);setAcceptMissing(false);setPublished("");setPreview((await request<{html:string}>(root+"/preview")).html)}
+ const run=async(task:()=>Promise<void>)=>{setBusy(true);setError("");setNotice("");try{await task()}catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}}
+ useEffect(()=>{let active=true;setProject(null);setPlan(null);setPreview("");setPrompt(briefing);void request<Project|null>(root).then(async p=>{if(!active||!p)return;setProject(p);setPlan(p.plan);setPrompt(p.prompt);const r=await request<{html:string}>(root+"/preview");if(active)setPreview(r.html)}).catch(e=>{if(active)setError(String(e))});return()=>{active=false}},[root,briefing])
+ const patch=(k:keyof Plan,v:string)=>setPlan(p=>p?{...p,[k]:v}:p)
+ return <section className="space-y-4 rounded-xl border border-orange-500/40 bg-[#141414] p-4">
+  <div><p className="text-xs font-bold uppercase tracking-widest text-orange-400">FLP Studio / Advanced</p><h2 className="text-2xl font-bold">Modo cinematográfico</h2><p className="text-sm text-zinc-400">Briefing longo, análise de requisitos, módulos interativos, mídia própria e código estático. Não usa API paga por padrão.</p></div>
+  {error&&<p role="alert" className="rounded bg-red-950 p-3">{error}</p>}{notice&&<p role="status" className="text-green-400">{notice}</p>}
+  <label className="block text-sm">Prompt completo ({prompt.length.toLocaleString("pt-BR")}/120.000 caracteres)<textarea rows={12} maxLength={120000} className={field} value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Cole o briefing técnico completo"/></label>
+  <button className={primary} disabled={busy||!prompt.trim()} onClick={()=>{if(project&&!window.confirm("Regerar o plano mantendo as mídias? Os ajustes do plano atual serão substituídos."))return;void run(async()=>{await adopt(await request<Project>(root,"POST",{prompt}));setNotice("Plano e site gerados localmente.")})}}>{busy?"Processando…":"Interpretar prompt e gerar site"}</button>
+  {project&&plan&&<><div className="grid gap-4 lg:grid-cols-2"><div className="space-y-3 rounded-lg border border-white/10 p-3"><h3 className="font-bold">Direção visual e conteúdo</h3>{(["title","headline","description"] as const).map(k=><label key={k} className="block text-xs">{({title:"Marca",headline:"Título principal",description:"Descrição"})[k]}<textarea rows={k==="description"?3:1} className={field} value={plan[k]} onChange={e=>patch(k,e.target.value)}/></label>)}<div className="grid grid-cols-3 gap-2">{(["primary","background","text"] as const).map(k=><label className="text-xs" key={k}>{k}<input className="block h-8 w-full" type="color" value={plan[k]} onChange={e=>patch(k,e.target.value)}/></label>)}</div><label className="block text-xs">Fonte<select className={field} value={plan.font} onChange={e=>patch("font",e.target.value)}>{["Montserrat","Arial","Georgia","system-ui"].map(f=><option key={f}>{f}</option>)}</select></label>
+   <h4 className="font-semibold">Módulos solicitados</h4>{project.coverage.modules.map(m=><label key={m.key} className="flex gap-2 text-sm"><input type="checkbox" checked={plan.features.includes(m.key)} onChange={e=>setPlan(p=>p?{...p,features:e.target.checked?[...p.features,m.key]:p.features.filter(k=>k!==m.key)}:p)}/>{m.label}</label>)}
+   <button disabled={busy||!dirty} className={primary} onClick={()=>void run(async()=>{await adopt(await request<Project>(root,"PUT",{revision:project.revision,plan}));setNotice("Ajustes salvos.")})}>Salvar alterações</button>
+   <div className="border-t border-white/10 pt-3"><h4 className="font-semibold">IA local opcional (Ollama)</h4><p className="text-xs text-zinc-400">Refina textos e identidade; o motor de módulos não depende de IA. Informe um modelo instalado, sem fallback para APIs externas.</p><input className={field} value={model} onChange={e=>setModel(e.target.value)}/><button className={button} disabled={busy||dirty||!model.trim()} onClick={()=>void run(async()=>adopt(await request<Project>(root+"/refine","POST",{model,revision:project.revision})))}>Refinar com IA local</button><p className="text-xs">Origem: {project.plan.provider}</p></div></div>
+   <div className="space-y-3 rounded-lg border border-white/10 p-3"><h3 className="font-bold">Materiais originais</h3><p className="text-xs text-zinc-400">Baixe o ZIP autorizado do repositório original e envie aqui. O Studio importa imagens, vídeos e fontes, mas não executa scripts do ZIP. Limite: 24 MiB por arquivo e 80 MiB no total.</p><input type="file" accept=".zip" onChange={e=>setUpload(e.target.files?.[0]||null)}/><label className="flex gap-2 text-sm"><input type="checkbox" checked={authorized} onChange={e=>setAuthorized(e.target.checked)}/>Tenho autorização para reutilizar esses materiais.</label><button className={primary} disabled={busy||dirty||!authorized||!upload} onClick={()=>void run(async()=>{if(!upload)return;const form=new FormData();form.append("zip",upload);form.append("authorized","true");await adopt(await request<Project>(root+"/media","POST",form));setNotice("Mídias importadas.")})}>Importar ZIP</button>
+   <p className="text-sm">{project.assets.length} mídias importadas</p><div className="max-h-32 overflow-auto text-xs">{project.assets.map(a=><p key={a.name}>{a.name} · {(a.bytes/1024).toFixed(0)} KB</p>)}</div>
+   <h4 className="font-semibold text-amber-300">Mídias solicitadas pendentes ({project.coverage.missing_assets.length})</h4><div className="max-h-32 overflow-auto text-xs">{project.coverage.missing_assets.map(a=><p key={a}>{a}</p>)}</div><details><summary>Requisitos do prompt ({project.coverage.requirements.length})</summary><div className="max-h-56 overflow-auto text-xs">{project.coverage.requirements.map((r,i)=><p key={i} className="border-b border-white/10 py-1">{r.title} · {r.modules.length} módulos detectados</p>)}</div></details>{project.coverage.notes.map(n=><p key={n} className="text-xs text-zinc-400">{n}</p>)}</div></div>
+   <div className="flex flex-wrap gap-2">{["100%","768px","390px"].map(w=><button key={w} className={button} onClick={()=>setWidth(w)}>{w==="100%"?"Desktop":w}</button>)}<a className={button} href={root+"/export"} onClick={e=>{if(dirty){e.preventDefault();setError("Salve antes de exportar.")}}}>Exportar projeto completo ZIP</a><button className={button} disabled={busy||dirty} onClick={()=>void run(async()=>{setAudits((await request<{results:Audit[]}>(root+"/audit","POST",{})).results);setNotice("Auditoria concluída.")})}>Auditar no Chrome</button></div>
+   <div className="overflow-auto rounded-xl bg-[#222] p-2"><iframe title="Prévia cinematográfica isolada" sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={preview} style={{width,maxWidth:"100%",height:760,border:0,display:"block",margin:"auto"}}/></div>
+   {audits.map(a=><div key={a.width} className="rounded border border-white/10 p-2"><p>{a.label}: {a.passed?"Sem falhas estruturais detectadas":"Revisar"} · {a.documentWidth}px · {a.brokenImages} imagens quebradas</p><p className="text-xs">{a.overflow.join(", ")}</p><img className="max-h-80 object-contain" src={a.screenshot} alt={"Auditoria "+a.label}/></div>)}
+   <div className="space-y-2 rounded-lg border border-white/10 p-3"><h3 className="font-bold">Publicação independente na Cloudflare Pages</h3><label className="flex gap-2"><input type="checkbox" checked={review} onChange={e=>setReview(e.target.checked)}/>Revisei o conteúdo, os cálculos, os direitos das mídias e o site.</label>{project.coverage.missing_assets.length>0&&<label className="flex gap-2 text-amber-300"><input type="checkbox" checked={acceptMissing} onChange={e=>setAcceptMissing(e.target.checked)}/>Aceito publicar com mídias pendentes.</label>}<button className={primary} disabled={busy||dirty||!review||(project.coverage.missing_assets.length>0&&!acceptMissing)} onClick={()=>void run(async()=>{const r=await request<{url:string}>(root+"/publish","POST",{reviewed:true,accept_missing:acceptMissing,revision:project.revision});setPublished(r.url);setNotice("Publicação confirmada.")})}>Publicar demonstração avançada</button>{published&&<a className="block text-orange-400 underline" href={published} target="_blank" rel="noreferrer">{published}</a>}</div>
+  </>}
+ </section>
+}
