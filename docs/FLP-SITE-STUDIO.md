@@ -51,3 +51,29 @@ O material de referência fornecido continha uma captura pública da landing pag
 7. Editor e publicação: prévia com escala automática, edição por seção, histórico, exportação e publicação Cloudflare após confirmação. As alterações não publicam automaticamente nem modificam sites já hospedados.
 
 Para validar localmente: git pull --ff-only origin feat/studio-premium, execute pytest e npm run build, reinicie o sistema e teste um projeto de advocacia com template automático. Pesquise uma foto usando a consulta sugerida e selecione uma imagem ilustrativa autorizada. Salve e execute a auditoria. O limite interno de operações IA continua em 10/dia e 100/mês. Nenhum token real foi usado durante o desenvolvimento. A compilação, execução dos testes e chamadas reais Pixabay/Cloudflare ainda precisam ser verificadas.
+
+
+## Studio Advanced — briefs técnicos extensos (gratuito/local)
+
+Abra um projeto do Studio e selecione **Studio Advanced / Cinematográfico**. Cole até 120 mil caracteres. O analisador local registra tópicos numerados, módulos detectados, links e arquivos solicitados. O modo cinematográfico compila HTML/CSS/JS original sem IA ou API externa. O perfil solar inclui vídeo com scrubbing bidirecional, oito cenas, colunas opostas, cards, imagens, galeria/lightbox, indicadores, simulador manual, formulário demonstrativo, dia/noite e cursor. Funciona sem instalar bibliotecas de front-end adicionais. É um motor de módulos, não um clone de referência nem prova de cumprimento de todos os requisitos.
+
+Importe um ZIP autorizado ou repositório público GitHub; sem credenciais, sem executar scripts e sem instalar pacotes do repositório. Importa arquivos de mídia raster, vídeo e WOFF2, até 24 MiB por arquivo e 80 MiB de mídia total. Registra inventário e trechos front-end limitados (12 mil caracteres); SVG ativo, código de terceiros executável e .env não são importados. URLs externas do briefing não são navegadas automaticamente. Use mídia autorizada e confirme as licenças. Se o vídeo for grande, comprima-o antes de enviar. Montserrat depende de fonte WOFF2 autorizada; caso ausente, usa fallback.
+
+O simulador é uma estimativa simplificada. Não consulta tarifas automaticamente, não representa todas as regras de geração distribuída e exige tarifa, parcela não compensável e cobranças informadas pelo usuário. Nenhum dado de orçamento é transmitido ou armazenado.
+
+### IA local opcional
+
+Instale Ollama para Windows (https://ollama.com/download) e baixe um modelo local de código compatível com sua memória, por exemplo:
+
+    ollama pull qwen2.5-coder:7b
+
+Inicie o Ollama, abra o Studio, use o nome exato mostrado em ollama list. O modo de refinamento trabalha com dados estruturados. O modo código livre (experimental) realiza três chamadas locais separadas (HTML, CSS, JavaScript) e aceita até 45 mil caracteres de briefing. Usa contexto de até 32768 tokens, saída limitada por etapa; modelos pequenos ou memória insuficiente podem gerar resultado incompleto. Não chama APIs pagas nem fallback cloud. Revise as três abas; a prévia do código não confiável só é executada após confirmação, em iframe sandbox sem same-origin, com CSP restritiva. O servidor não executa o código gerado. Isso não é garantia de segurança contra todo comportamento de JavaScript. Exporte o ZIP e audite manualmente antes de publicar código livre. O botão Cloudflare publica apenas o runtime fixo e utiliza projeto separado do editor clássico.
+
+### Testes
+
+    cd backend
+    .\.venv\Scripts\python.exe -m pytest tests/test_studio_advanced.py -q
+    cd ../frontend
+    npm run build
+
+Auditoria do modo cinematográfico usa Chrome/Edge/Chromium com rede bloqueada, captura de três tamanhos e testes de dia/noite, simulador, formulário e galeria quando presentes. Não testa toda combinação nem verifica Safari automaticamente. Código livre não passa por execução automática no servidor. A branch não foi mesclada; testes, API real, Ollama e deploy dependem da validação local. Não foi realizada publicação real.
