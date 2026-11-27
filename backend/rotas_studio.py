@@ -219,3 +219,48 @@ def generate(pid):
         conn.execute("UPDATE studio_ai_usage SET provider=? WHERE id=?",(provider,usage_id))
         conn.commit()
         return jsonify(save(conn,p,result,"Antes da alteração por IA",provider=provider))
+
+
+import studio_cloudflare as cf
+
+
+@bp.get("/cloudflare")
+def cloudflare():
+    try:
+        cf.test_connection()
+        return jsonify(message="Conexão com Cloudflare Pages confirmada.")
+    except cf.CloudflareError as exc:
+        return jsonify(erro=str(exc)), 503
+
+
+@bp.post("/projects/<pid>/publish")
+def publish(pid):
+    if payload().get("reviewed") is not True:
+        raise ValueError("Revise e confirme a publicação.")
+    with closing(db.conectar()) as conn:
+        p = get_project(conn,pid)
+        assets = studio.files(p["model"])
+        try:
+            cf.credentials()
+        except cf.CloudflareError as exc:
+            return jsonify(erro=str(exc)), 503
+        cur = conn.execute("UPDATE studio_projects SET status='publicando' WHERE id=? AND revision=? AND status!='publicando'",(pid,p["revision"]))
+        if cur.rowcount != 1:
+            raise ValueError("Uma operação está em andamento. Recarregue.")
+        conn.execute("INSERT INTO studio_versions(project_id,model,label) VALUES(?,?,?)",
+                     (pid,json.dumps(p["model"],ensure_ascii=False),"Antes da publicação"))
+        conn.commit()
+        try:
+            name = p["cf_project"] or cf.project_name(p["name"],pid)
+            if not p["cf_project"]:
+                cf.ensure_project(name)
+                conn.execute("UPDATE studio_projects SET cf_project=? WHERE id=?",(name,pid))
+                conn.commit()
+            url,deploy_id = cf.deploy(name,assets)
+            conn.execute("UPDATE studio_projects SET status='publicado',url=?,deploy_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",(url,deploy_id,pid))
+            conn.commit()
+            return jsonify(get_project(conn,pid))
+        except Exception as exc:
+            conn.execute("UPDATE studio_projects SET status='erro_publicacao' WHERE id=?",(pid,))
+            conn.commit()
+            return jsonify(erro=str(exc) if isinstance(exc,cf.CloudflareError) else "Falha na publicação. Confira dependências e painel Cloudflare."),502
