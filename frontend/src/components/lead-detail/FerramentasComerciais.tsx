@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -145,6 +146,7 @@ export function FerramentasComerciais({ lead }: { lead: Lead }) {
             <Textarea rows={9} value={demo.prompt} onChange={e => setDemo({ ...demo, prompt: e.target.value })} />
           </label>
           <Button size="sm" variant="outline" onClick={() => copiar(demo.prompt).then(() => toast.success("Prompt copiado.")).catch(() => toast.error("Não foi possível copiar."))}>Copiar prompt</Button>
+          <Button size="sm" asChild><Link to={`/site-studio?lead=${encodeURIComponent(lead.place_id)}`} state={{briefing:demo.briefing,name:lead.nome}}>Abrir briefing no Site Studio</Link></Button>
         </div>}
       </div>}
       {aba === "proposta" && <div className="space-y-3">
