@@ -153,7 +153,7 @@ def preview():
 @bp.post("/audit")
 def audit():
     model=payload().get("model")
-    return jsonify(results=studio_audit.audit(studio.render(model,preview=True)))
+    return jsonify(results=studio_audit.audit(studio.render(model,preview=False)))
 
 
 @bp.post("/projects/<pid>/template")
@@ -293,6 +293,9 @@ def generate(pid):
                 output["theme"]={**studio.starter(p["name"],"",chosen_template)["theme"],**output.get("theme",{})}
                 if output["theme"].get("layout")=="split" and plan["style"]!="split":
                     output["theme"]["layout"]=plan["style"]
+                generic = studio.starter(p["name"],"","servicos")["theme"]
+                if all(output["theme"].get(k)==generic[k] for k in ("primary","background","text")):
+                    output["theme"].update({k:studio.starter(p["name"],"",chosen_template)["theme"][k] for k in ("primary","background","text")})
                 for item in output.get("sections",[]):
                     if item.get("kind")=="hero" and item.get("variant","auto")=="auto":
                         item["variant"]=plan["hero_variant"]
