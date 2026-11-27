@@ -406,6 +406,9 @@ def advanced_tables(conn):
       project_id TEXT PRIMARY KEY, prompt TEXT NOT NULL, plan TEXT NOT NULL,
       revision INTEGER NOT NULL DEFAULT 1, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE TABLE IF NOT EXISTS studio_advanced_reference (
+      project_id TEXT PRIMARY KEY, data TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS studio_advanced_code (
       project_id TEXT PRIMARY KEY, code TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1, source_revision INTEGER NOT NULL
     );
@@ -423,13 +426,16 @@ def advanced_data(conn,pid):
     if not row:
         return None,{}
     assets={r["name"]:r["data"] for r in conn.execute("SELECT name,data FROM studio_advanced_media WHERE project_id=?",(pid,))}
-    return dict(row),assets
+    row=dict(row)
+    ref=conn.execute("SELECT data FROM studio_advanced_reference WHERE project_id=?",(pid,)).fetchone()
+    row["reference"]=json.loads(ref["data"]) if ref else {"files":[],"excerpts":[]}
+    return row,assets
 
 def advanced_view(row,assets):
     plan=json.loads(row["plan"])
     return {"prompt":row["prompt"],"plan":plan,"revision":row["revision"],
             "assets":[{"name":n,"bytes":len(b)} for n,b in assets.items()],
-            "coverage":advanced.coverage(row["prompt"],plan,assets)}
+            "coverage":advanced.coverage(row["prompt"],plan,assets),"reference_files":row.get("reference",{}).get("files",[])}
 
 @bp.get("/projects/<pid>/advanced")
 def advanced_get(pid):
@@ -491,13 +497,28 @@ def advanced_media(pid):
     if request.form.get("authorized")!="true": raise ValueError("Confirme os direitos sobre os arquivos.")
     upload=request.files.get("zip")
     if not upload: raise ValueError("Envie um ZIP autorizado.")
-    incoming=advanced.read_media_zip(upload.stream.read(advanced.MAX_TOTAL+1))
-    if not incoming: raise ValueError("Nenhum arquivo de mídia compatível.")
+    raw=upload.stream.read(advanced.MAX_TOTAL+1)
+    return save_reference(pid,raw)
+
+@bp.post("/projects/<pid>/advanced/github")
+def advanced_github(pid):
+    d=payload()
+    if d.get("authorized") is not True: raise ValueError("Confirme os direitos sobre os arquivos.")
+    with closing(db.conectar()) as conn:
+        row,_=advanced_data(conn,pid)
+        if not row: raise LookupError("Crie primeiro o projeto avançado.")
+    return save_reference(pid,advanced.public_github_zip(d.get("url")))
+
+def save_reference(pid,raw):
+    incoming=advanced.read_media_zip(raw)
+    reference=advanced.inspect_reference_zip(raw)
+    if not incoming and not reference["excerpts"]: raise ValueError("Nenhuma mídia ou código front-end compatível.")
     with closing(db.conectar()) as conn:
         row,assets=advanced_data(conn,pid)
         if not row: raise LookupError("Crie primeiro o projeto avançado.")
         if sum(len(b) for b in {**assets,**incoming}.values())>advanced.MAX_TOTAL: raise ValueError("Limite total de mídia atingido.")
         conn.executemany("INSERT OR REPLACE INTO studio_advanced_media(project_id,name,data) VALUES(?,?,?)",[(pid,n,b) for n,b in incoming.items()])
+        conn.execute("INSERT OR REPLACE INTO studio_advanced_reference(project_id,data) VALUES(?,?)",(pid,json.dumps(reference,ensure_ascii=False)))
         conn.execute("UPDATE studio_advanced_projects SET revision=revision+1 WHERE project_id=?",(pid,))
         conn.commit()
         row,assets=advanced_data(conn,pid)
@@ -580,7 +601,7 @@ def advanced_code_generate(pid):
         if not project: raise LookupError("Crie o projeto avançado.")
         if d.get("revision")!=project["revision"]: raise ValueError("Plano desatualizado.")
         prior=code_row(conn,pid)
-        code=studio_code.generate(project["prompt"],json.loads(project["plan"]),assets,d.get("model"))
+        code=studio_code.generate(project["prompt"],json.loads(project["plan"]),assets,d.get("model"),project.get("reference"))
         conn.execute("BEGIN IMMEDIATE")
         current=conn.execute("SELECT revision FROM studio_advanced_projects WHERE project_id=?",(pid,)).fetchone()
         row=code_row(conn,pid)
