@@ -118,7 +118,7 @@ def traduzir_erro_ia(erro):
 # Adapters dos provedores - todos recebem (system, user, temperatura, formato_json)
 # ---------------------------------------------------------------------------
 
-def gemini_gerar_mensagem(system, user, temperatura=TEMPERATURA_COPY, formato_json=False):
+def gemini_gerar_mensagem(system, user, temperatura=TEMPERATURA_COPY, formato_json=False, *, max_tokens=None):
     from google import genai
 
     chave = db.obter_config("gemini")
@@ -127,18 +127,22 @@ def gemini_gerar_mensagem(system, user, temperatura=TEMPERATURA_COPY, formato_js
     config = {"system_instruction": system, "temperature": temperatura}
     if formato_json:
         config["response_mime_type"] = "application/json"
+    if max_tokens is not None:
+        config["max_output_tokens"] = max_tokens
     resposta = cliente.models.generate_content(
         model="gemini-flash-latest", contents=user, config=config
     )
     return resposta.text.strip()
 
 
-def groq_gerar_mensagem(system, user, temperatura=TEMPERATURA_COPY, formato_json=False):
+def groq_gerar_mensagem(system, user, temperatura=TEMPERATURA_COPY, formato_json=False, *, max_tokens=None):
     from openai import OpenAI
 
     chave = db.obter_config("groq")
     cliente = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=chave, timeout=IA_TIMEOUT_SEGUNDOS)
     extras = {"response_format": {"type": "json_object"}} if formato_json else {}
+    if max_tokens is not None:
+        extras["max_completion_tokens"] = max_tokens
     resposta = cliente.chat.completions.create(
         model="openai/gpt-oss-20b",
         messages=[
@@ -151,7 +155,7 @@ def groq_gerar_mensagem(system, user, temperatura=TEMPERATURA_COPY, formato_json
     return resposta.choices[0].message.content.strip()
 
 
-def nvidia_gerar_mensagem(system, user, temperatura=TEMPERATURA_COPY, formato_json=False):
+def nvidia_gerar_mensagem(system, user, temperatura=TEMPERATURA_COPY, formato_json=False, *, max_tokens=None):
     from openai import OpenAI
 
     chave = db.obter_config("nvidia")
@@ -165,7 +169,7 @@ def nvidia_gerar_mensagem(system, user, temperatura=TEMPERATURA_COPY, formato_js
         ],
         temperature=temperatura,
         top_p=0.9,
-        max_tokens=700,
+        max_tokens=700 if max_tokens is None else max_tokens,
         **extras,
     )
     return resposta.choices[0].message.content.strip()
@@ -179,13 +183,14 @@ GERADORES = {
 
 
 def executar_com_fallback(system, user, parser=None, descricao_log="gerar mensagem",
-                          temperatura=TEMPERATURA_COPY, formato_json=False):
+                          temperatura=TEMPERATURA_COPY, formato_json=False, *, max_tokens=None):
     """Tenta o par (system, user) em cada provedor configurado, na ordem de
     preferência. Se um falhar (cota, erro, resposta que o parser rejeita), tenta
     o próximo. Retorna (resultado, provedor_usado, avisos_para_o_usuario);
     levanta NenhumProvedorDisponivel se todos falharem."""
     avisos = []
     erro_final = None
+    options = {"max_tokens": max_tokens} if max_tokens is not None else {}
 
     for provedor in ORDEM_PROVEDORES_IA:
         if not db.obter_config(provedor):
@@ -200,7 +205,7 @@ def executar_com_fallback(system, user, parser=None, descricao_log="gerar mensag
 
         try:
             resposta = GERADORES[provedor](
-                system, user, temperatura=temperatura, formato_json=formato_json
+                system, user, temperatura=temperatura, formato_json=formato_json, **options
             )
             resultado = parser(resposta) if parser else resposta
             logger.info("%s com sucesso via %s", descricao_log, provedor)
