@@ -114,7 +114,7 @@ def create():
         if not name:
             raise ValueError("Informe a empresa.")
         phone = str((lead or {}).get("telefone") or "")
-        briefing = studio.txt(d.get("briefing") or "", 20000)
+        briefing = studio.txt(d.get("briefing") or "", 120000)
         if not briefing and lead:
             briefing = _dados_empresa(lead) + "\n" + _sugestoes_nicho(lead)
         plan = direction.analyze(name,(lead or {}).get("categoria"),(lead or {}).get("nicho"),briefing,template)
@@ -394,3 +394,155 @@ def photo_import():
     if data.get("confirmed") is not True:
         raise ValueError("Confirme a utilização como imagem ilustrativa.")
     return jsonify(photos.import_photo(data.get("id"),data.get("provider","pexels")))
+
+
+# Modo avançado independente: não altera o editor de templates nem os sites já publicados.
+import studio_advanced as advanced
+import studio_advanced_render as advanced_render
+
+def advanced_tables(conn):
+    conn.executescript("""
+    CREATE TABLE IF NOT EXISTS studio_advanced_projects (
+      project_id TEXT PRIMARY KEY, prompt TEXT NOT NULL, plan TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS studio_advanced_media (
+      project_id TEXT NOT NULL, name TEXT NOT NULL, data BLOB NOT NULL,
+      PRIMARY KEY(project_id,name)
+    );
+    """)
+    conn.commit()
+
+def advanced_data(conn,pid):
+    get_project(conn,pid)
+    advanced_tables(conn)
+    row=conn.execute("SELECT * FROM studio_advanced_projects WHERE project_id=?",(pid,)).fetchone()
+    if not row:
+        return None,{}
+    assets={r["name"]:r["data"] for r in conn.execute("SELECT name,data FROM studio_advanced_media WHERE project_id=?",(pid,))}
+    return dict(row),assets
+
+def advanced_view(row,assets):
+    plan=json.loads(row["plan"])
+    return {"prompt":row["prompt"],"plan":plan,"revision":row["revision"],
+            "assets":[{"name":n,"bytes":len(b)} for n,b in assets.items()],
+            "coverage":advanced.coverage(row["prompt"],plan,assets)}
+
+@bp.get("/projects/<pid>/advanced")
+def advanced_get(pid):
+    with closing(db.conectar()) as conn:
+        row,assets=advanced_data(conn,pid)
+        return jsonify(advanced_view(row,assets) if row else None)
+
+@bp.post("/projects/<pid>/advanced")
+def advanced_create(pid):
+    d=payload()
+    prompt=advanced.prompt_text(d.get("prompt"))
+    with closing(db.conectar()) as conn:
+        p=get_project(conn,pid)
+        row,assets=advanced_data(conn,pid)
+        plan=advanced.initial_plan(p["name"],prompt)
+        conn.execute("""INSERT INTO studio_advanced_projects(project_id,prompt,plan) VALUES(?,?,?)
+          ON CONFLICT(project_id) DO UPDATE SET prompt=excluded.prompt,plan=excluded.plan,revision=revision+1,updated_at=CURRENT_TIMESTAMP""",
+          (pid,prompt,json.dumps(plan,ensure_ascii=False)))
+        conn.commit()
+        row,assets=advanced_data(conn,pid)
+        return jsonify(advanced_view(row,assets))
+
+@bp.put("/projects/<pid>/advanced")
+def advanced_edit(pid):
+    d=payload()
+    with closing(db.conectar()) as conn:
+        row,assets=advanced_data(conn,pid)
+        if not row: raise LookupError("Crie primeiro o projeto avançado.")
+        if d.get("revision")!=row["revision"]: raise ValueError("Versão desatualizada.")
+        plan=advanced.clean_plan(d.get("plan"),advanced.analyze(row["prompt"]))
+        cur=conn.execute("UPDATE studio_advanced_projects SET plan=?,revision=revision+1 WHERE project_id=? AND revision=?",
+                         (json.dumps(plan,ensure_ascii=False),pid,row["revision"]))
+        if not cur.rowcount: raise ValueError("Projeto alterado. Recarregue.")
+        conn.commit()
+        row,assets=advanced_data(conn,pid)
+        return jsonify(advanced_view(row,assets))
+
+@bp.post("/projects/<pid>/advanced/refine")
+def advanced_refine(pid):
+    d=payload()
+    with closing(db.conectar()) as conn:
+        row,assets=advanced_data(conn,pid)
+        if not row: raise LookupError("Crie primeiro o projeto avançado.")
+        if d.get("revision")!=row["revision"]: raise ValueError("Versão desatualizada.")
+        model=d.get("model","")
+        if not isinstance(model,str): raise ValueError("Modelo inválido.")
+        plan=advanced.refine_local(json.loads(row["plan"]),row["prompt"],model)
+        cur=conn.execute("UPDATE studio_advanced_projects SET plan=?,revision=revision+1 WHERE project_id=? AND revision=?",
+                         (json.dumps(plan,ensure_ascii=False),pid,row["revision"]))
+        if not cur.rowcount: raise ValueError("Projeto alterado. Recarregue.")
+        conn.commit()
+        row,assets=advanced_data(conn,pid)
+        return jsonify(advanced_view(row,assets))
+
+@bp.post("/projects/<pid>/advanced/media")
+def advanced_media(pid):
+    if request.content_length and request.content_length>advanced.MAX_TOTAL+100000:
+        raise ValueError("ZIP acima do limite.")
+    if request.form.get("authorized")!="true": raise ValueError("Confirme os direitos sobre os arquivos.")
+    upload=request.files.get("zip")
+    if not upload: raise ValueError("Envie um ZIP autorizado.")
+    incoming=advanced.read_media_zip(upload.stream.read(advanced.MAX_TOTAL+1))
+    if not incoming: raise ValueError("Nenhum arquivo de mídia compatível.")
+    with closing(db.conectar()) as conn:
+        row,assets=advanced_data(conn,pid)
+        if not row: raise LookupError("Crie primeiro o projeto avançado.")
+        if sum(len(b) for b in {**assets,**incoming}.values())>advanced.MAX_TOTAL: raise ValueError("Limite total de mídia atingido.")
+        conn.executemany("INSERT OR REPLACE INTO studio_advanced_media(project_id,name,data) VALUES(?,?,?)",[(pid,n,b) for n,b in incoming.items()])
+        conn.execute("UPDATE studio_advanced_projects SET revision=revision+1 WHERE project_id=?",(pid,))
+        conn.commit()
+        row,assets=advanced_data(conn,pid)
+        return jsonify(advanced_view(row,assets))
+
+@bp.get("/projects/<pid>/advanced/preview")
+def advanced_preview(pid):
+    with closing(db.conectar()) as conn:
+        row,assets=advanced_data(conn,pid)
+        if not row: raise LookupError("Crie primeiro o projeto avançado.")
+        return jsonify(html=advanced_render.compile_site(json.loads(row["plan"]),assets,preview=True))
+
+@bp.get("/projects/<pid>/advanced/export")
+def advanced_export(pid):
+    with closing(db.conectar()) as conn:
+        row,assets=advanced_data(conn,pid)
+        if not row: raise LookupError("Crie primeiro o projeto avançado.")
+        plan=json.loads(row["plan"])
+        files=advanced_render.compile_site(plan,assets)
+        return send_file(advanced_render.export(files,advanced.coverage(row["prompt"],plan,assets)),
+                         mimetype="application/zip",as_attachment=True,download_name="studio-avancado-"+pid[:8]+".zip")
+
+@bp.post("/projects/<pid>/advanced/audit")
+def advanced_audit(pid):
+    with closing(db.conectar()) as conn:
+        row,assets=advanced_data(conn,pid)
+        if not row: raise LookupError("Crie primeiro o projeto avançado.")
+        doc=advanced_render.compile_site(json.loads(row["plan"]),assets,preview=True)
+    return jsonify(results=studio_audit.audit(doc))
+
+@bp.post("/projects/<pid>/advanced/publish")
+def advanced_publish(pid):
+    d=payload()
+    if d.get("reviewed") is not True: raise ValueError("Revise e confirme a publicação.")
+    with closing(db.conectar()) as conn:
+        row,assets=advanced_data(conn,pid)
+        if not row: raise LookupError("Crie primeiro o projeto avançado.")
+        if row["revision"]!=d.get("revision"): raise ValueError("Versão desatualizada.")
+        plan=json.loads(row["plan"])
+        missing=advanced.coverage(row["prompt"],plan,assets)["missing_assets"]
+        if missing and d.get("accept_missing") is not True: raise ValueError("Há mídias pendentes. Revise antes de publicar.")
+        files=advanced_render.compile_site(plan,assets)
+        # Projeto Cloudflare separado para não sobrescrever o site do editor clássico.
+        name=cf.project_name(plan["title"]+"-avancado",pid)
+        try:
+            cf.credentials()
+            cf.ensure_project(name,existing=True)
+            url,deploy_id=cf.deploy(name,files)
+        except cf.CloudflareError as exc:
+            return jsonify(erro=str(exc)),502
+        return jsonify(url=url,deploy_id=deploy_id)
