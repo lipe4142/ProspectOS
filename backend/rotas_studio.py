@@ -8,6 +8,8 @@ import db
 import ia
 import site_studio as studio
 import studio_photos as photos
+import studio_direction as direction
+import studio_audit
 from rotas_comercial import _dados_empresa, _sugestoes_nicho
 
 bp = Blueprint("site_studio", __name__, url_prefix="/api/studio")
@@ -42,6 +44,9 @@ def get_project(conn, pid):
         raise LookupError("Projeto não encontrado.")
     data = dict(row)
     data["model"] = studio.validate(json.loads(data["model"]))
+    lead = conn.execute("SELECT * FROM leads WHERE place_id=?",(data["lead_id"],)).fetchone() if data["lead_id"] else None
+    lead = dict(lead) if lead else {}
+    data["analysis"] = direction.analyze(data["name"],lead.get("categoria"),lead.get("nicho"),data["briefing"])
     sent = conn.execute("SELECT sent_at FROM studio_sent WHERE project_id=?", (pid,)).fetchone()
     data["sent_at"] = sent["sent_at"] if sent else None
     return data
@@ -94,8 +99,8 @@ def projects():
 @bp.post("/projects")
 def create():
     d = payload()
-    template = d.get("template", "servicos")
-    if template not in studio.TEMPLATES:
+    template = d.get("template", "auto")
+    if template != "auto" and template not in studio.TEMPLATES:
         raise ValueError("Template inválido.")
     lead_id = studio.txt(d.get("lead_id", ""), 500)
     with closing(db.conectar()) as conn:
@@ -112,8 +117,11 @@ def create():
         briefing = studio.txt(d.get("briefing") or "", 20000)
         if not briefing and lead:
             briefing = _dados_empresa(lead) + "\n" + _sugestoes_nicho(lead)
+        plan = direction.analyze(name,(lead or {}).get("categoria"),(lead or {}).get("nicho"),briefing,template)
+        template = plan["template"]
         pid = uuid.uuid4().hex
         model = studio.starter(name, phone, template)
+        model["sections"][0]["variant"] = plan["hero_variant"]
         conn.execute("INSERT INTO studio_projects(id,lead_id,name,template,briefing,model) VALUES(?,?,?,?,?,?)",
                      (pid, lead_id or None, name, template, briefing, json.dumps(model, ensure_ascii=False)))
         conn.commit()
@@ -140,6 +148,12 @@ def edit(pid):
 def preview():
     model = payload().get("model")
     return jsonify(html=studio.render(model, preview=True), quality=studio.quality(model))
+
+
+@bp.post("/audit")
+def audit():
+    model=payload().get("model")
+    return jsonify(results=studio_audit.audit(studio.render(model,preview=True)))
 
 
 @bp.post("/projects/<pid>/template")
@@ -191,6 +205,12 @@ def generate(pid):
         raise ValueError("Informe a alteração desejada.")
     with closing(db.conectar()) as conn:
         p = get_project(conn,pid)
+        mode = d.get("mode", "edit")
+        selected = d.get("selected")
+        if mode not in ("generate", "edit", "section"):
+            raise ValueError("Modo de IA inválido.")
+        if mode == "section" and (type(selected) is not int or not 0 <= selected < len(p["model"]["sections"])):
+            raise ValueError("Selecione uma seção válida.")
         conn.execute("BEGIN IMMEDIATE")
         daily = conn.execute("SELECT COUNT(*) FROM studio_ai_usage WHERE date(created_at)=date('now')").fetchone()[0]
         monthly = conn.execute("SELECT COUNT(*) FROM studio_ai_usage WHERE strftime('%Y-%m',created_at)=strftime('%Y-%m','now')").fetchone()[0]
@@ -203,12 +223,11 @@ def generate(pid):
         model = json.loads(json.dumps(p["model"]))
         for s in model["sections"]:
             s.pop("image",None)
-        mode = d.get("mode", "edit")
-        selected = d.get("selected")
-        if mode not in ("generate", "edit", "section"):
-            raise ValueError("Modo de IA inválido.")
-        if mode == "section" and (type(selected) is not int or not 0 <= selected < len(model["sections"])):
-            raise ValueError("Selecione uma seção válida.")
+        plan = p["analysis"]
+        chosen_template = plan["inferred"] if p["template"]=="servicos" and mode=="generate" else p["template"]
+        plan = direction.analyze(p["name"],briefing=p["briefing"],preferred=chosen_template)
+        if mode=="generate" and chosen_template!=p["template"]:
+            model["theme"]=studio.starter(p["name"],"",chosen_template)["theme"]
         system = (
             "Você é diretor de arte digital e estrategista de conversão da FLP Systems. Retorne exclusivamente JSON. "
             "Não copie marcas, templates ou textos de outras empresas. Projete uma identidade original, específica para o nicho. "
@@ -219,10 +238,13 @@ def generate(pid):
             "ou serviços sem evidência. Se faltarem dados, formule conteúdo neutro e indique no texto apenas quando necessário. "
             "Não prometa fotos que não existem; o editor disponibiliza imagens autorizadas. "
             "Formato: title, description (SEO, até 160 caracteres), phone, theme, sections. "
-            "theme: primary, background, text (HEX), font (uma de "+", ".join(studio.FONTS)+"), layout (um de "+", ".join(studio.STYLES)+"). "
+            "theme: primary, background, text (HEX), font (uma de "+", ".join(studio.FONTS)+"), layout (um de "+", ".join(studio.STYLES)+"), heading_font (auto ou fonte da lista), spacing (compact, balanced, airy), corners (auto, square, soft, round). "
             "Cada seção: kind (um de "+", ".join(studio.KINDS)+"), eyebrow (rótulo curto), title, body, cta (opcional), "
-            "variant (um de "+", ".join(studio.VARIANTS)+"), image_alt, items (até 8 objetos title e body para serviços, FAQ, processo e diferenciais). "
+            "variant (um de "+", ".join(studio.VARIANTS)+"), image_alt, surface (normal, soft, contrast, accent), items (até 8 objetos title e body para serviços, FAQ, processo e diferenciais). "
             "Use 2 a 4 cards com texto curto quando existirem dados; FAQ deve conter perguntas e respostas honestas. "
+            "Alterne superfícies claras e contrastantes, blocos editoriais e grades. Use uma composição própria, não replique sempre o mesmo padrão. "
+            "Se o nicho for advocacia, use linguagem informativa, identidade sóbria e fotografia ilustrativa; não prometa resultados, não divulgue preços nem invente credenciais. "
+            "Na geração completa respeite a direção de arte sugerida pela análise e os dados de identidade confirmados; não mantenha o estilo genérico do rascunho. "
             "Escolha composições variadas, não repita cards e estrutura em todas as seções. Estilos: cinematic para foto dominante, "
             "editorial/luxury para arquitetura ou advocacia, industrial para energia e engenharia, brutalist para marcas expressivas, "
             "organic para beleza, bento para tecnologia e saúde. Respeite identidade e estilo explicitamente pedidos. "
@@ -231,7 +253,7 @@ def generate(pid):
             "Não gere código, links, HTML, JS, imagens base64 ou URLs. Não invente dados comerciais."
         )
         user = json.dumps({"briefing":p["briefing"],"current":model,"request":instruction,
-                           "mode":mode,"selected":selected},ensure_ascii=False)
+                           "mode":mode,"selected":selected,"direction":plan},ensure_ascii=False)
         def parser(raw):
             output = json.loads(raw)
             if not isinstance(output, dict):
@@ -266,6 +288,14 @@ def generate(pid):
                         s["image_credit"]=old["image_credit"]
                         s["image_source"]=old["image_source"]
                     available.remove(old)
+            if mode=="generate" and chosen_template!=p["template"]:
+                # Perfil identificado corrige projetos antigos que nasceram como Serviços.
+                output["theme"]={**studio.starter(p["name"],"",chosen_template)["theme"],**output.get("theme",{})}
+                if output["theme"].get("layout")=="split" and plan["style"]!="split":
+                    output["theme"]["layout"]=plan["style"]
+                for item in output.get("sections",[]):
+                    if item.get("kind")=="hero" and item.get("variant","auto")=="auto":
+                        item["variant"]=plan["hero_variant"]
             result = studio.validate(output)
             if mode == "generate" and (len(result["sections"]) < 5 or len({s["kind"] for s in result["sections"]})<4 or result["sections"][0]["kind"]!="hero"):
                 raise ValueError("Geração incompleta.")
@@ -277,7 +307,7 @@ def generate(pid):
             return jsonify(erro="IA indisponível ou resposta inválida. Confira chaves e cotas; o projeto foi preservado."), 503
         conn.execute("UPDATE studio_ai_usage SET provider=? WHERE id=?",(provider,usage_id))
         conn.commit()
-        return jsonify(save(conn,p,result,"Antes da alteração por IA",provider=provider))
+        return jsonify(save(conn,p,result,"Antes da alteração por IA",template=chosen_template if mode=="generate" else None,provider=provider))
 
 
 import studio_cloudflare as cf
@@ -352,7 +382,7 @@ def confirm_sent(pid):
 
 @bp.get("/photos")
 def photo_search():
-    return jsonify(photos.search(request.args.get("q","")))
+    return jsonify(photos.search(request.args.get("q",""),request.args.get("provider","auto")))
 
 
 @bp.post("/photos/import")
@@ -360,4 +390,4 @@ def photo_import():
     data = payload()
     if data.get("confirmed") is not True:
         raise ValueError("Confirme a utilização como imagem ilustrativa.")
-    return jsonify(photos.import_photo(data.get("id")))
+    return jsonify(photos.import_photo(data.get("id"),data.get("provider","pexels")))
