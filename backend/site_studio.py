@@ -119,7 +119,7 @@ footer{font-size:13px;opacity:.8}@media(max-width:720px){section:has(img){grid-t
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 """
     return ('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-            '<meta name="robots" content="noindex,nofollow"><meta http-equiv="Content-Security-Policy" content="default-src \\'none\\'; style-src \\'unsafe-inline\\'; img-src data:; base-uri \\'none\\'; form-action \\'none\\'">'
+            '<meta name="robots" content="noindex,nofollow"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data:; base-uri \'none\'; form-action \'none\'">'
             '<title>' + e(m["title"]) + '</title><meta name="description" content="' + e(m["description"], quote=True) + '"><style>' + css +
             '</style></head><body class="' + t["layout"] + '"><header><strong>' + e(m["title"]) + '</strong><nav>' + nav +
             '</nav></header><main>' + "".join(parts) + '</main><footer>Projeto demonstrativo desenvolvido pela FLP Systems.</footer></body></html>')
