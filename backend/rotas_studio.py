@@ -538,10 +538,14 @@ def advanced_publish(pid):
         if missing and d.get("accept_missing") is not True: raise ValueError("Há mídias pendentes. Revise antes de publicar.")
         files=advanced_render.compile_site(plan,assets)
         # Projeto Cloudflare separado para não sobrescrever o site do editor clássico.
-        name=cf.project_name(plan["title"]+"-avancado",pid)
+        name=cf.project_name("studio-avancado",pid)
         try:
             cf.credentials()
-            cf.ensure_project(name,existing=True)
+            try:
+                cf.ensure_project(name,existing=True)
+            except cf.CloudflareError as exc:
+                if "HTTP 404" not in str(exc): raise
+                cf.ensure_project(name)
             url,deploy_id=cf.deploy(name,files)
         except cf.CloudflareError as exc:
             return jsonify(erro=str(exc)),502
