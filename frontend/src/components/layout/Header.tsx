@@ -1,5 +1,5 @@
 import { Link, NavLink } from "react-router-dom"
-import { BookOpen, ListTodo, MapPin, Plus, Settings, Trash2 } from "lucide-react"
+import { BookOpen, ListTodo, MapPin, Plus, Settings, Trash2, Globe } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/layout/ThemeToggle"
@@ -59,6 +59,9 @@ export function Header({ onNovaBusca, onVerIgnorados }: HeaderProps) {
           </ItemNav>
           <ItemNav to="/instagram" icone={<InstagramIcon className="size-4" />}>
             Instagram
+          </ItemNav>
+          <ItemNav to="/site-studio" icone={<Globe className="size-4" />} ariaLabel="Site Studio">
+            Site Studio
           </ItemNav>
           <ItemNav to="/documentacao" icone={<BookOpen className="size-4" />}>
             Documentação
