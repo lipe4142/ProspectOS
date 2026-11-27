@@ -39,7 +39,7 @@ def compile_site(plan,assets,preview=False):
     header='<header class="header"><a class="brand" href="#home">'+brand+'</a><nav>'+links+'</nav><details class="mobile"><summary aria-label="Menu">☰</summary><nav>'+links+'</nav></details></header>'
     poster=url("hero-poster.jpg")
     video=url("solar.mp4")
-    media=('<video id="hero-video" muted playsinline preload="metadata" poster="'+e(poster)+'" src="'+e(video)+'"></video>') if video and "video" in features else (image("hero-poster.jpg","Imagem de abertura") if poster else "")
+    media=((image("hero-poster.jpg","Imagem de abertura") if poster else "")+'<video id="hero-video" muted playsinline preload="metadata" poster="'+e(poster)+'" src="'+e(video)+'"></video>') if video and "video" in features else (image("hero-poster.jpg","Imagem de abertura") if poster else "")
     hero='<div id="home" class="hero-track'+(" scrub" if video and "video" in features else "")+'"><div class="hero">'+media+'<div class="shade"></div><div class="hero-content"><p class="eyebrow">'+("O FUTURO NASCE DO SOL" if solar else name)+'</p><h1>'+e(plan["headline"])+'</h1><p>'+e(plan["description"])+'</p><div class="buttons">'+(' <a class="button" href="#'+nav[0][0]+'">Explore as soluções ↗</a>' if nav else "")+'</div><small class="scroll-hint">Role para descobrir ↓</small></div></div></div>'
     if "scenes" in features:
         titles=["Sua casa, sua energia","O potencial de cada telhado","Energia integrada à arquitetura","O primeiro raio de sol","Captação em grande escala","Conforto depois do anoitecer","Inversores inteligentes","Monitoramento em suas mãos"] if solar else ["Cena "+str(i+1) for i in range(8)]
@@ -60,7 +60,7 @@ def compile_site(plan,assets,preview=False):
     if "gallery" in features:
         names=[n for n in assets if n.startswith("hero-main") or n.startswith("gallery") or n in ("floating-solar.jpg","solar-macro.jpg")]
         if not names: names=["hero-main"+str(i)+".jpeg" for i in range(6)]
-        gallery=''.join('<button class="gallery-item reveal" type="button" '+('data-gallery="'+e(url(n))+'"' if n in assets else 'disabled')+'>'+image(n,"Referência visual "+str(i+1))+'<span>Referência '+str(i+1).zfill(2)+'</span></button>' for i,n in enumerate(names[:24]))
+        gallery=''.join('<button class="gallery-item reveal" type="button" '+('data-gallery="true"' if n in assets else 'disabled')+'>'+image(n,"Referência visual "+str(i+1))+'<span>Referência '+str(i+1).zfill(2)+'</span></button>' for i,n in enumerate(names[:24]))
         blocks.append(section("gallery","Energia em imagens." if solar else "Galeria de inspiração",'<div class="bento">'+gallery+'</div><dialog id="lightbox"><button type="button" data-close aria-label="Fechar">✕</button><button type="button" data-prev aria-label="Anterior">←</button><img alt="Referência ilustrativa"><button type="button" data-next aria-label="Próxima">→</button></dialog>'))
     if "stats" in features:
         stats=[(3,"Áreas de atuação"),(4,"Etapas de planejamento"),(6,"Referências visuais"),(2,"Cenários dia e noite")] if solar else []
