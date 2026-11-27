@@ -147,6 +147,7 @@ export function LeadDetailModal({ lead: snapshot, onClose }: LeadDetailModalProp
             </div>
 
             <div className="flex min-w-0 flex-col gap-4">
+              <Button asChild><Link to={`/site-studio?lead=${encodeURIComponent(lead.place_id)}`} onClick={onClose}>Criar demonstração de site</Link></Button>
               <FerramentasComerciais key={lead.place_id} lead={lead} />
               <LeadMessageGenerator
                 lead={lead}
