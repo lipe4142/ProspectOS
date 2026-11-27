@@ -145,3 +145,53 @@ def coverage(prompt,plan,assets):
     missing=[p for p in a["assets"] if PurePosixPath(p).name not in assets]
     return {"requirements":a["sections"],"modules":[{"key":k,"label":LABELS[k],"enabled":k in plan["features"]} for k in a["features"]],
             "missing_assets":missing,"references":a["references"],"notes":["Referências externas não foram inspecionadas automaticamente.","SVG não é importado por segurança; use PNG/WebP autorizado.","Tarifa e regras de compensação devem ser preenchidas com fonte oficial; nenhuma tarifa atual foi inventada.","Cobertura por módulos não equivale a aprovação de todos os requisitos."]}
+
+
+def inspect_reference_zip(raw):
+    """Inventário e trechos de código front-end; nunca lê env, chaves ou executa arquivos."""
+    result={"files":[],"excerpts":[]}
+    total=0
+    try:
+        with zipfile.ZipFile(io.BytesIO(raw)) as z:
+            for item in z.infolist():
+                path=item.filename.replace("\\","/")
+                lower=path.lower()
+                if item.is_dir() or any(part in lower.split("/") for part in (".git","node_modules","dist","build","vendor")): continue
+                if len(result["files"])<2000: result["files"].append(path[:200])
+                leaf=PurePosixPath(path).name.lower()
+                if any(x in leaf for x in ("secret","credential","token","password","config","env","auth","key")): continue
+                if not (leaf in ("readme.md","index.html") or ("/src/" in lower and PurePosixPath(lower).suffix in (".tsx",".jsx",".ts",".js",".css"))): continue
+                if item.file_size>100000 or total>=12000: continue
+                text=z.read(item).decode("utf-8",errors="replace")[:min(2500,12000-total)]
+                result["excerpts"].append({"path":path[:200],"text":text})
+                total+=len(text)
+        return result
+    except (zipfile.BadZipFile,RuntimeError,NotImplementedError):
+        raise ValueError("ZIP de referência inválido.") from None
+
+def public_github_zip(url):
+    """Apenas GitHub público, com destino fixo, sem credenciais e sem redirecionamentos."""
+    import requests
+    if not isinstance(url,str): raise ValueError("URL do GitHub inválida.")
+    match=re.fullmatch(r"https://github\.com/([A-Za-z0-9-]{1,39})/([A-Za-z0-9_.-]{1,100})/?",url.strip())
+    if not match: raise ValueError("Informe https://github.com/usuario/repositorio público.")
+    owner,repo=match.groups()
+    if repo in (".",".."): raise ValueError("Repositório inválido.")
+    session=requests.Session();session.trust_env=False
+    try:
+        r=session.get("https://api.github.com/repos/"+owner+"/"+repo,headers={"Accept":"application/vnd.github+json"},timeout=(5,15),allow_redirects=False)
+        if r.status_code!=200 or r.json().get("private") is not False:
+            raise ValueError("Repositório público indisponível. Use o ZIP autorizado.")
+        # HEAD no codeload é a branch padrão; não aceita URL arbitrária.
+        endpoint="https://codeload.github.com/"+owner+"/"+repo+"/zip/HEAD"
+        raw=bytearray()
+        with session.get(endpoint,stream=True,timeout=(5,60),allow_redirects=False) as r:
+            if r.status_code!=200: raise ValueError("ZIP do GitHub indisponível. Use a importação manual.")
+            for chunk in r.iter_content(65536):
+                raw.extend(chunk)
+                if len(raw)>MAX_TOTAL: raise ValueError("ZIP acima de 80 MiB. Exporte apenas as mídias necessárias.")
+        return bytes(raw)
+    except requests.RequestException:
+        raise ValueError("Não foi possível acessar GitHub público. Use a importação manual.") from None
+    finally:
+        session.close()
