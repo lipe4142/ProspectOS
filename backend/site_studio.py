@@ -92,11 +92,15 @@ def validate(model):
         items = item.get("items", [])
         if not isinstance(items, list) or len(items) > 12 or any(not isinstance(x,dict) for x in items):
             raise ValueError("Lista de componentes inválida.")
+        source = txt(item.get("image_source", ""), 200)
+        if source and not re.fullmatch(r"https://www\.pexels\.com/photo/[0-9]+/",source):
+            raise ValueError("Fonte de imagem inválida.")
         result["sections"].append({
             "kind": item["kind"], "title": txt(item.get("title", ""), 160),
             "body": txt(item.get("body", "")), "image": image(item.get("image", "")),
             "eyebrow": txt(item.get("eyebrow", ""), 100), "cta": txt(item.get("cta", ""), 60),
             "image_alt": txt(item.get("image_alt", ""), 200), "variant": variant,
+            "image_source": source, "image_credit": txt(item.get("image_credit", ""), 100),
             "items": [{"title": txt(x.get("title", ""), 160), "body": txt(x.get("body", ""), 500)} for x in items],
         })
     if len(json.dumps(result)) > 8_000_000:
