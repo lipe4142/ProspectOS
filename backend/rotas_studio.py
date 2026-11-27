@@ -547,7 +547,7 @@ def advanced_audit(pid):
         row,assets=advanced_data(conn,pid)
         if not row: raise LookupError("Crie primeiro o projeto avançado.")
         doc=advanced_render.compile_site(json.loads(row["plan"]),assets,preview=True)
-    return jsonify(results=studio_audit.audit(doc))
+    return jsonify(results=studio_audit.audit(doc,interactive=True))
 
 @bp.post("/projects/<pid>/advanced/publish")
 def advanced_publish(pid):
