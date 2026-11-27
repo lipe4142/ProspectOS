@@ -38,3 +38,16 @@ O material de referência fornecido continha uma captura pública da landing pag
 - Não há treinamento de pesos de modelos de IA nem geração automática de fotografia; o sistema usa direção de arte, validação e composição programática próprias. Não é uma reprodução integral do LPaaS.
 - Limites de IA e cobrança potencial permanecem os do sistema existente. Não foi adicionada cobrança ou contratação automática.
 - Testes adicionados em test_site_studio.py. Execute pytest e npm run build antes de mesclar. Teste um site com imagens autorizadas, compare todos os tamanhos e publique apenas depois de revisar.
+
+
+## Studio Premium — fluxo em sete etapas
+
+1. Análise local: identifica o segmento a partir do nome, categoria, nicho e briefing. A classificação é heurística, não pesquisa externa nem verificação factual. Escolher o template manualmente continua possível.
+2. Direção de arte: perfil do nicho orienta a geração por IA; fontes de títulos, espaçamento, bordas e superfícies por seção podem ser editados sem consumir IA.
+3. Imagens: PIXABAY_API_KEY no backend/.env habilita o Pixabay prioritário, com consulta sugerida pelo segmento, cache SQLite por 24 horas, seleção humana e download local otimizado em WebP. PEXELS_API_KEY é fallback opcional. A API é destinada a consultas humanas, não a coleta em massa. Créditos e indicação de imagem ilustrativa são mantidos. Imagens de banco não representam equipe, clientes ou instalações reais.
+4. Composição: o motor combina direções de arte, estrutura, conteúdo, paleta, variantes e superfícies. Não promete exclusividade absoluta; ainda é um sistema de componentes. A abertura não usa formas geométricas genéricas quando não há foto.
+5. Código: gera um HTML independente com CSS e JavaScript fixo e revisável para microinterações. O modelo fornece somente dados estruturados, não executa código arbitrário. O script publicado é autorizado por hash CSP; a prévia permanece em iframe sandbox sem scripts.
+6. Auditoria: botão "Auditar responsividade no navegador" usa Chromium com rede bloqueada, sem acessar o CRM, em 390, 768 e 1440 px. Mostra capturas do primeiro viewport, overflow, imagens quebradas, H1 e altura de botões. Não é Lighthouse nem avaliação estética por IA. Se necessário instale Chromium com python -m playwright install chromium.
+7. Editor e publicação: prévia com escala automática, edição por seção, histórico, exportação e publicação Cloudflare após confirmação. As alterações não publicam automaticamente nem modificam sites já hospedados.
+
+Para validar localmente: git pull --ff-only origin feat/studio-premium, execute pytest e npm run build, reinicie o sistema e teste um projeto de advocacia com template automático. Pesquise uma foto usando a consulta sugerida e selecione uma imagem ilustrativa autorizada. Salve e execute a auditoria. O limite interno de operações IA continua em 10/dia e 100/mês. Nenhum token real foi usado durante o desenvolvimento. A compilação, execução dos testes e chamadas reais Pixabay/Cloudflare ainda precisam ser verificadas.
