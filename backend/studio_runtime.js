@@ -1,0 +1,33 @@
+(()=>{"use strict";
+const $=(s,p=document)=>p.querySelector(s), $$=(s,p=document)=>Array.from(p.querySelectorAll(s));
+const reduced=matchMedia("(prefers-reduced-motion: reduce)"), fine=matchMedia("(pointer:fine)"), clamp=(v,a=0,b=1)=>Math.min(b,Math.max(a,v));
+const header=$(".header"), track=$(".hero-track"), video=$("#hero-video"), sceneTrack=$(".scene-track"), scenes=$$(".scene"), opposed=$(".opposed"), progress=$(".progress span");
+let target=0,frame=0,sceneIndex=-1,videoFailed=false;
+if(video){video.addEventListener("error",()=>{videoFailed=true;video.style.display="none";track.classList.remove("scrub")});video.addEventListener("loadedmetadata",()=>{video.pause();schedule()});video.pause()}
+function position(el){const r=el.getBoundingClientRect();return clamp(-r.top/Math.max(1,r.height-innerHeight))}
+function paint(){frame=0;header?.classList.toggle("scrolled",scrollY>24);
+ if(video&&!videoFailed&&!reduced.matches&&Number.isFinite(video.duration)&&video.duration>0){target=position(track)*Math.max(0,video.duration-.04);const gap=target-video.currentTime;if(Math.abs(gap)>.025&&!video.seeking){try{video.currentTime=video.currentTime+gap*.23}catch{}}if(Math.abs(gap)>.025)schedule()}
+ if(sceneTrack&&scenes.length&&!reduced.matches){const index=Math.min(scenes.length-1,Math.floor(position(sceneTrack)*scenes.length));if(index!==sceneIndex){sceneIndex=index;scenes.forEach((s,i)=>{s.classList.toggle("active",i===index);s.setAttribute("aria-hidden",String(i!==index))});if(progress)progress.style.height=((index+1)/scenes.length*100)+"%"}}
+ if(opposed&&!reduced.matches&&innerWidth>800){const r=opposed.getBoundingClientRect();const offset=(clamp((innerHeight-r.top)/(innerHeight+r.height))-.5)*100;opposed.children[0].style.transform="translateY("+(-offset)+"px)";opposed.children[1].style.transform="translateY("+offset+"px)"}
+}
+function schedule(){if(!frame)frame=requestAnimationFrame(paint)}
+addEventListener("scroll",schedule,{passive:true});addEventListener("resize",schedule,{passive:true});schedule();
+$$(".split-card").forEach(el=>{const index=Number($(".index",el)?.textContent)||0;el.style.setProperty("--order",index)});
+if(!reduced.matches&&"IntersectionObserver" in window){const obs=new IntersectionObserver(entries=>entries.forEach(({target,isIntersecting})=>{if(!isIntersecting)return;target.classList.add("visible");target.classList.remove("pending");if(target.dataset.count){const count=Number(target.dataset.count),start=performance.now();function tick(now){const t=clamp((now-start)/700);target.textContent=String(Math.round(count*t)).padStart(2,"0");if(t<1)requestAnimationFrame(tick)}requestAnimationFrame(tick)}obs.unobserve(target)}),{threshold:.12});$$(".reveal,.counter").forEach(el=>{if(el.classList.contains("reveal"))el.classList.add("pending");obs.observe(el)})}
+if(fine.matches&&!reduced.matches){$$(".card").forEach(card=>{card.addEventListener("pointermove",ev=>{const r=card.getBoundingClientRect();card.style.setProperty("--rx",((.5-(ev.clientY-r.top)/r.height)*5)+"deg");card.style.setProperty("--ry",(((ev.clientX-r.left)/r.width-.5)*5)+"deg")});card.addEventListener("pointerleave",()=>{card.style.removeProperty("--rx");card.style.removeProperty("--ry")})});const cursor=$("#cursor");if(cursor)addEventListener("pointermove",ev=>{cursor.classList.add("on");cursor.classList.toggle("hover",!!ev.target.closest("a,button,input"));cursor.style.transform="translate("+(ev.clientX-cursor.offsetWidth/2)+"px,"+(ev.clientY-cursor.offsetHeight/2)+"px)"},{passive:true})}
+const gallery=$$("[data-gallery]"),dialog=$("#lightbox");let current=0;
+function show(index){if(!dialog||!gallery.length)return;current=(index+gallery.length)%gallery.length;$("img",dialog).src=gallery[current].dataset.gallery}
+gallery.forEach((el,i)=>el.addEventListener("click",()=>{show(i);if(typeof dialog.showModal==="function")dialog.showModal()}));$("[data-close]")?.addEventListener("click",()=>dialog.close());$("[data-prev]")?.addEventListener("click",()=>show(current-1));$("[data-next]")?.addEventListener("click",()=>show(current+1));dialog?.addEventListener("keydown",ev=>{if(ev.key==="ArrowLeft")show(current-1);if(ev.key==="ArrowRight")show(current+1)});
+const calc=$("#solar-calc"), brl=new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"});
+function calculate(){if(!calc)return;const fields=calc.elements;for(const name of ["coverage","self"]){$('[data-range="'+name+'"]',calc).textContent=fields[name].value}
+ const output=$("[data-saving]",calc),results=$("[data-results]",calc),bar=$(".bar span",calc);
+ if(!calc.checkValidity()){output.textContent="Informe os dados";results.replaceChildren();bar.style.width="0";return}
+ const n=name=>Number(fields[name].value), kwh=n("kwh"),rate=n("rate"),bill=n("bill"),fixed=n("fixed"),generation=kwh*n("coverage")/100,selfUsed=Math.min(kwh,generation*n("self")/100),grid=Math.max(0,kwh-selfUsed),credit=Math.min(grid,Math.max(0,generation-selfUsed));
+ const minimum=n("connection"),remaining=Math.max(minimum,grid-credit),after=remaining*rate+Math.min(rate,n("noncomp"))*credit+fixed,saving=bill-after,pct=bill>0?saving/bill*100:0;
+ output.textContent=brl.format(saving)+" / mês";results.replaceChildren();for(const [label,value] of [["Conta atual",brl.format(bill)],["Conta após instalação",brl.format(after)],["Economia anual",brl.format(saving*12)],["Redução",pct.toFixed(1)+"%"],["Consumo",kwh.toFixed(0)+" kWh"],["Geração estimada",generation.toFixed(0)+" kWh"]]){const row=document.createElement("div"),dt=document.createElement("dt"),dd=document.createElement("dd");dt.textContent=label;dd.textContent=value;row.append(dt,dd);results.append(row)}bar.style.width=clamp(pct,0,100)+"%";
+}
+calc?.addEventListener("input",calculate);calc?.addEventListener("submit",ev=>{ev.preventDefault();calculate()});calculate();
+$("#quote")?.addEventListener("submit",ev=>{ev.preventDefault();if(ev.target.checkValidity())$("#quote-status").textContent="Solicitação demonstrativa validada. Nenhum dado foi enviado ou armazenado."});
+$$("[data-mode]").forEach(el=>el.addEventListener("click",()=>{const night=el.dataset.mode==="night";$("#daynight").classList.toggle("is-night",night);$$("[data-mode]").forEach(b=>b.setAttribute("aria-pressed",String(b===el)));$("[data-daytext]").textContent=night?"À noite, use a rede ou baterias compatíveis.":"Durante o dia, os módulos captam luz solar."}));
+$$(".mobile nav a").forEach(a=>a.addEventListener("click",()=>a.closest("details").removeAttribute("open")));
+})();
