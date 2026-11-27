@@ -52,6 +52,11 @@ def resposta_fixa(texto):
 
 
 class TestExecutarComFallback:
+    def test_prioriza_groq_quando_ambos_configurados(self, monkeypatch):
+        configurar_provedores(monkeypatch, groq=resposta_fixa("groq"), gemini=resposta_fixa("gemini"))
+        resultado, provedor, avisos = ia.executar_com_fallback("system", "user")
+        assert (resultado, provedor, avisos) == ("groq", "groq", [])
+
     def test_usa_primeiro_provedor_disponivel(self, monkeypatch):
         configurar_provedores(monkeypatch, gemini=resposta_fixa("resposta do gemini"))
 
@@ -73,18 +78,18 @@ class TestExecutarComFallback:
         assert chamadas == [("persona", "dados", 0.2, True)]
 
     def test_cai_para_o_proximo_quando_primeiro_falha(self, monkeypatch):
-        def gemini_quebrado(system, user, temperatura=None, formato_json=False):
+        def groq_quebrado(system, user, temperatura=None, formato_json=False):
             raise ErroGenerico("explodiu")
 
         configurar_provedores(
-            monkeypatch, gemini=gemini_quebrado, groq=resposta_fixa("resposta do groq")
+            monkeypatch, groq=groq_quebrado, gemini=resposta_fixa("resposta do gemini")
         )
 
         resultado, provedor, avisos = ia.executar_com_fallback("system", "user")
-        assert resultado == "resposta do groq"
-        assert provedor == "groq"
+        assert resultado == "resposta do gemini"
+        assert provedor == "gemini"
         assert len(avisos) == 1
-        assert "Google Gemini" in avisos[0]
+        assert "Groq" in avisos[0]
 
     def test_pula_provedor_nao_configurado(self, monkeypatch):
         chamadas = []
@@ -101,31 +106,31 @@ class TestExecutarComFallback:
         assert chamadas == []
 
     def test_provedor_que_estoura_timeout_cai_para_o_proximo(self, monkeypatch):
-        def gemini_pendurado(system, user, temperatura=None, formato_json=False):
+        def groq_pendurado(system, user, temperatura=None, formato_json=False):
             raise TimeoutError("request timed out")
 
         configurar_provedores(
-            monkeypatch, gemini=gemini_pendurado, groq=resposta_fixa("resposta do groq")
+            monkeypatch, groq=groq_pendurado, gemini=resposta_fixa("resposta do gemini")
         )
 
         resultado, provedor, _avisos = ia.executar_com_fallback("system", "user")
-        assert resultado == "resposta do groq"
-        assert provedor == "groq"
+        assert resultado == "resposta do gemini"
+        assert provedor == "gemini"
 
     def test_todos_falharam_levanta_com_ultimo_erro(self, monkeypatch):
-        erro_groq = ErroGenerico("groq caiu")
-
-        def falha_gemini(system, user, temperatura=None, formato_json=False):
-            raise ErroGenerico("gemini caiu")
+        erro_gemini = ErroGenerico("gemini caiu")
 
         def falha_groq(system, user, temperatura=None, formato_json=False):
-            raise erro_groq
+            raise ErroGenerico("groq caiu")
 
-        configurar_provedores(monkeypatch, gemini=falha_gemini, groq=falha_groq)
+        def falha_gemini(system, user, temperatura=None, formato_json=False):
+            raise erro_gemini
+
+        configurar_provedores(monkeypatch, groq=falha_groq, gemini=falha_gemini)
 
         with pytest.raises(ia.NenhumProvedorDisponivel) as excecao:
             ia.executar_com_fallback("system", "user")
-        assert excecao.value.erro_final is erro_groq
+        assert excecao.value.erro_final is erro_gemini
 
     def test_nenhum_configurado_levanta_com_erro_none(self, monkeypatch):
         configurar_provedores(monkeypatch)  # nenhum provedor
@@ -137,8 +142,8 @@ class TestExecutarComFallback:
     def test_parser_rejeitando_resposta_aciona_fallback(self, monkeypatch):
         configurar_provedores(
             monkeypatch,
-            gemini=resposta_fixa("resposta que o parser rejeita"),
-            groq=resposta_fixa("resposta boa"),
+            groq=resposta_fixa("resposta que o parser rejeita"),
+            gemini=resposta_fixa("resposta boa"),
         )
 
         def parser(resposta):
@@ -148,37 +153,37 @@ class TestExecutarComFallback:
 
         resultado, provedor, _avisos = ia.executar_com_fallback("system", "user", parser=parser)
         assert resultado == "RESPOSTA BOA"
-        assert provedor == "groq"
+        assert provedor == "gemini"
 
 
 class TestCooldown:
     def test_erro_de_cota_poe_provedor_em_cooldown(self, monkeypatch):
         chamadas = []
 
-        def gemini_sem_cota(system, user, temperatura=None, formato_json=False):
-            chamadas.append("gemini")
+        def groq_sem_cota(system, user, temperatura=None, formato_json=False):
+            chamadas.append("groq")
             raise ErroDeCota("429 too many requests")
 
-        configurar_provedores(monkeypatch, gemini=gemini_sem_cota, groq=resposta_fixa("ok"))
+        configurar_provedores(monkeypatch, groq=groq_sem_cota, gemini=resposta_fixa("ok"))
 
         _, provedor, _ = ia.executar_com_fallback("system", "user")
-        assert provedor == "groq"
-        assert chamadas == ["gemini"]
-        assert ia._provedor_em_cooldown("gemini")
+        assert provedor == "gemini"
+        assert chamadas == ["groq"]
+        assert ia._provedor_em_cooldown("groq")
 
         _, provedor, avisos = ia.executar_com_fallback("system", "user")
-        assert provedor == "groq"
-        assert chamadas == ["gemini"]  # gemini nem foi tentado de novo
+        assert provedor == "gemini"
+        assert chamadas == ["groq"]  # groq nem foi tentado de novo
         assert any("cota gratuita" in aviso for aviso in avisos)
 
     def test_erro_generico_nao_gera_cooldown(self, monkeypatch):
-        def gemini_quebrado(system, user, temperatura=None, formato_json=False):
+        def groq_quebrado(system, user, temperatura=None, formato_json=False):
             raise ErroGenerico("erro qualquer")
 
-        configurar_provedores(monkeypatch, gemini=gemini_quebrado, groq=resposta_fixa("ok"))
+        configurar_provedores(monkeypatch, groq=groq_quebrado, gemini=resposta_fixa("ok"))
 
         ia.executar_com_fallback("system", "user")
-        assert not ia._provedor_em_cooldown("gemini")
+        assert not ia._provedor_em_cooldown("groq")
 
 
 class TestDeteccaoDeErroDeCota:
