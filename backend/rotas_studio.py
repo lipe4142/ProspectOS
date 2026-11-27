@@ -406,6 +406,9 @@ def advanced_tables(conn):
       project_id TEXT PRIMARY KEY, prompt TEXT NOT NULL, plan TEXT NOT NULL,
       revision INTEGER NOT NULL DEFAULT 1, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE TABLE IF NOT EXISTS studio_advanced_code (
+      project_id TEXT PRIMARY KEY, code TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1, source_revision INTEGER NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS studio_advanced_media (
       project_id TEXT NOT NULL, name TEXT NOT NULL, data BLOB NOT NULL,
       PRIMARY KEY(project_id,name)
@@ -550,3 +553,77 @@ def advanced_publish(pid):
         except cf.CloudflareError as exc:
             return jsonify(erro=str(exc)),502
         return jsonify(url=url,deploy_id=deploy_id)
+
+
+import studio_code
+
+def code_row(conn,pid):
+    row=conn.execute("SELECT * FROM studio_advanced_code WHERE project_id=?",(pid,)).fetchone()
+    return dict(row) if row else None
+
+def code_view(row,current_revision):
+    return {"code":json.loads(row["code"]),"revision":row["revision"],"stale":row["source_revision"]!=current_revision}
+
+@bp.get("/projects/<pid>/advanced/code")
+def advanced_code_get(pid):
+    with closing(db.conectar()) as conn:
+        project,assets=advanced_data(conn,pid)
+        if not project: raise LookupError("Crie o projeto avançado.")
+        row=code_row(conn,pid)
+        return jsonify(code_view(row,project["revision"]) if row else None)
+
+@bp.post("/projects/<pid>/advanced/code")
+def advanced_code_generate(pid):
+    d=payload()
+    with closing(db.conectar()) as conn:
+        project,assets=advanced_data(conn,pid)
+        if not project: raise LookupError("Crie o projeto avançado.")
+        if d.get("revision")!=project["revision"]: raise ValueError("Plano desatualizado.")
+        prior=code_row(conn,pid)
+        code=studio_code.generate(project["prompt"],json.loads(project["plan"]),assets,d.get("model"))
+        conn.execute("BEGIN IMMEDIATE")
+        current=conn.execute("SELECT revision FROM studio_advanced_projects WHERE project_id=?",(pid,)).fetchone()
+        row=code_row(conn,pid)
+        if current["revision"]!=project["revision"] or (row or {}).get("revision")!=(prior or {}).get("revision"):
+            raise ValueError("Projeto alterado durante a geração. O código anterior foi preservado.")
+        conn.execute("""INSERT INTO studio_advanced_code(project_id,code,source_revision) VALUES(?,?,?)
+          ON CONFLICT(project_id) DO UPDATE SET code=excluded.code,source_revision=excluded.source_revision,revision=revision+1""",
+          (pid,json.dumps(code,ensure_ascii=False),project["revision"]))
+        conn.commit()
+        return jsonify(code_view(code_row(conn,pid),project["revision"]))
+
+@bp.put("/projects/<pid>/advanced/code")
+def advanced_code_edit(pid):
+    d=payload()
+    with closing(db.conectar()) as conn:
+        project,assets=advanced_data(conn,pid)
+        if not project: raise LookupError("Crie o projeto avançado.")
+        row=code_row(conn,pid)
+        if not row or d.get("revision")!=row["revision"]: raise ValueError("Código desatualizado.")
+        code=studio_code.validate(d.get("code"))
+        cur=conn.execute("UPDATE studio_advanced_code SET code=?,revision=revision+1 WHERE project_id=? AND revision=?",
+                         (json.dumps(code,ensure_ascii=False),pid,row["revision"]))
+        if not cur.rowcount: raise ValueError("Código alterado. Recarregue.")
+        conn.commit()
+        return jsonify(code_view(code_row(conn,pid),project["revision"]))
+
+@bp.post("/projects/<pid>/advanced/code/preview")
+def advanced_code_preview(pid):
+    if payload().get("reviewed") is not True: raise ValueError("Revise o código antes de executar a prévia.")
+    with closing(db.conectar()) as conn:
+        project,assets=advanced_data(conn,pid)
+        row=code_row(conn,pid)
+        if not project or not row: raise LookupError("Gere o código primeiro.")
+        return jsonify(html=studio_code.files(json.loads(row["code"]),assets,json.loads(project["plan"])["title"],preview=True))
+
+@bp.get("/projects/<pid>/advanced/code/export")
+def advanced_code_export(pid):
+    with closing(db.conectar()) as conn:
+        project,assets=advanced_data(conn,pid)
+        row=code_row(conn,pid)
+        if not project or not row: raise LookupError("Gere o código primeiro.")
+        plan=json.loads(project["plan"])
+        files=studio_code.files(json.loads(row["code"]),assets,plan["title"])
+        report=advanced.coverage(project["prompt"],plan,assets)
+        report["notes"].append("Código de IA não auditado automaticamente; revise manualmente todas as funcionalidades e segurança.")
+        return send_file(advanced_render.export(files,report),mimetype="application/zip",as_attachment=True,download_name="studio-codigo-"+pid[:8]+".zip")
