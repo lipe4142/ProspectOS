@@ -2,6 +2,8 @@
 Nenhum código, marca ou imagem de terceiros é incorporado.
 """
 import html
+import base64
+import hashlib
 import re
 
 STYLES = {
@@ -33,10 +35,18 @@ def esc(v):
     return html.escape(v, quote=True)
 
 
-def ink(color):
+def luminance(color):
     rgb = [int(color[i:i+2],16)/255 for i in (1,3,5)]
-    lum = sum(w*(c/12.92 if c<=.04045 else ((c+.055)/1.055)**2.4) for c,w in zip(rgb,(.2126,.7152,.0722)))
-    return "#101010" if lum > .179 else "#ffffff"
+    return sum(w*(c/12.92 if c<=.04045 else ((c+.055)/1.055)**2.4) for c,w in zip(rgb,(.2126,.7152,.0722)))
+
+
+def contrast(a,b):
+    x,y=sorted((luminance(a),luminance(b)))
+    return (y+.05)/(x+.05)
+
+
+def ink(color):
+    return "#101010" if luminance(color) > .179 else "#ffffff"
 
 
 def art(style):
@@ -52,7 +62,8 @@ def art(style):
 
 def photo(s, style, hero=False, fallback=False):
     if s["image"]:
-        credit = '<figcaption>Imagem ilustrativa · <a href="'+esc(s["image_source"])+'" rel="noopener noreferrer">Foto: '+esc(s.get("image_credit") or "Pexels")+' / Pexels</a></figcaption>' if s.get("image_source") else ""
+        provider = "Pixabay" if "pixabay.com/" in s.get("image_source","") else "Pexels"
+        credit = '<figcaption>Imagem ilustrativa · <a href="'+esc(s["image_source"])+'" rel="noopener noreferrer">Foto: '+esc(s.get("image_credit") or provider)+' / '+provider+'</a></figcaption>' if s.get("image_source") else ""
         return '<figure class="media"><img src="'+esc(s["image"])+'" alt="'+esc(s.get("image_alt",""))+'" loading="'+("eager" if hero else "lazy")+'" decoding="async">'+credit+'</figure>'
     return art(style) if fallback else ""
 
@@ -80,6 +91,16 @@ CSS = """
 """
 
 
+# JavaScript original e fixo: a IA não pode fornecer ou executar scripts arbitrários.
+SCRIPT = """(()=>{const media=matchMedia('(prefers-reduced-motion: reduce)');if(!media.matches&&'IntersectionObserver' in window){const observer=new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting){entry.target.classList.add('visible');observer.unobserve(entry.target)}}},{threshold:.08});document.querySelectorAll('.section').forEach(el=>{el.classList.add('reveal');observer.observe(el)})}document.querySelectorAll('.mobile-nav a').forEach(a=>a.addEventListener('click',()=>a.closest('details').removeAttribute('open')));})();"""
+SCRIPT_HASH=base64.b64encode(hashlib.sha256(SCRIPT.encode("utf-8")).digest()).decode("ascii")
+EXTRA_CSS = """
+section{scroll-margin-top:85px}.hero .copy{position:relative}.hero:not(.has-photo) .art{display:none}.hero:not(.has-photo) .shell{grid-template-columns:1fr}.hero:not(.has-photo) h1{max-width:17ch}.hero:not(.has-photo){background:radial-gradient(ellipse at 90% 10%,var(--tint),transparent 70%),var(--bg);min-height:clamp(420px,66vh,720px)}.style-luxury .hero:not(.has-photo),.style-editorial .hero:not(.has-photo){background:linear-gradient(115deg,var(--bg) 65%,var(--surface))}.style-luxury .hero .copy{border-left:2px solid var(--primary);padding-left:clamp(18px,4vw,54px)}.style-luxury h1{font-style:normal}.style-luxury .item{border-left:1px solid var(--line)}.style-luxury .item .number{color:var(--primary)}.style-luxury .btn{letter-spacing:.025em}.style-editorial .hero .copy{padding-bottom:25px}.style-industrial .hero .kicker{letter-spacing:.22em}.style-brutalist .hero h1{font-size:clamp(44px,8vw,118px)}.style-bento .cards{grid-template-columns:repeat(3,minmax(0,1fr))}.style-bento .cards .item:first-child{grid-column:span 2}.surface-accent{--text:var(--on-primary);--muted:var(--on-primary);--surface:color-mix(in srgb,var(--on-primary) 9%,var(--primary));--line:color-mix(in srgb,var(--on-primary) 28%,transparent);background:var(--primary);color:var(--text)}.surface-accent .btn{background:var(--on-primary);color:var(--primary)}.surface-accent .kicker:before{background:var(--on-primary)}.surface-soft{background:var(--surface)}.surface-contrast{--text:var(--inverse-text);--muted:var(--inverse-text);--surface:color-mix(in srgb,var(--inverse-text) 8%,var(--inverse-bg));--line:color-mix(in srgb,var(--inverse-text) 25%,transparent);background:var(--inverse-bg);color:var(--text)}.section.variant-bento .cards{grid-template-columns:repeat(3,minmax(0,1fr))}.section.variant-bento .item:first-child{grid-column:span 2}.section .cards+.media{margin-top:24px;aspect-ratio:16/7}.spacing-compact .section{padding-block:clamp(38px,5vw,72px)}.spacing-airy .section{padding-block:clamp(70px,10vw,150px)}.corners-square{--radius:0px;--media-radius:0px}.corners-soft{--radius:10px;--media-radius:16px}.corners-round{--radius:99px;--media-radius:28px}.section.reveal{opacity:0;transform:translateY(18px);transition:opacity .55s ease,transform .55s ease}.section.reveal.visible{opacity:1;transform:none}
+@media(max-width:850px){.style-bento .cards,.section.variant-bento .cards{grid-template-columns:1fr}.style-bento .cards .item:first-child,.section.variant-bento .item:first-child{grid-column:auto}.hero:not(.has-photo) .shell{grid-template-columns:1fr}.hero:not(.has-photo) h1{max-width:100%}.hero .copy{min-width:0}.nav{gap:10px}.hero h1{font-size:clamp(36px,10vw,64px)}}
+@media(prefers-reduced-motion:reduce){.section.reveal{opacity:1;transform:none}}
+"""
+
+
 def render(m, preview=False):
     t=m["theme"]
     style=t["layout"]
@@ -88,6 +109,9 @@ def render(m, preview=False):
     muted = "#d0d0d0" if dark else "#535353"
     # Blend user-selected foreground with background for coherent surfaces.
     css = f":root{{--primary:{t['primary']};--bg:{t['background']};--text:{t['text']};--on-primary:{on};--font:{t['font']};--heading:var(--font);--heading-weight:850;--tracking:-.055em;--muted:{muted};--line:color-mix(in srgb,var(--text) 18%,transparent);--surface:color-mix(in srgb,var(--text) 5%,var(--bg));--tint:color-mix(in srgb,var(--primary) 20%,var(--bg));--radius:10px;--media-radius:18px}}"
+    css += ":root{--inverse-bg:"+("#f6f4ef" if dark else "#142033")+";--inverse-text:"+("#17202b" if dark else "#ffffff")+"}"
+    if t.get("heading_font","auto")!="auto":
+        css += "body[class]{--heading:"+t["heading_font"]+"}"
     phone=m["phone"]
     if len(phone) in (10,11): phone="55"+phone
     has_phone=12<=len(phone)<=15
@@ -97,7 +121,7 @@ def render(m, preview=False):
     nav="".join('<a href="#s%d">%s</a>'%(i,esc(LABELS[s["kind"]])) for i,s in enumerate(m["sections"]) if s["kind"] not in ("hero","cta"))
     out=[]
     for i,s in enumerate(m["sections"]):
-        kind=s["kind"]; variant=s.get("variant","auto"); title=esc(s["title"]); body=esc(s["body"])
+        kind=s["kind"]; variant=s.get("variant","auto"); title=esc(s["title"]); body=esc(s["body"]); surface=s.get("surface","normal")
         eyebrow=esc(s.get("eyebrow") or (m["title"] if kind=="hero" else LABELS[kind]))
         label=s.get("cta","")
         p='<p>'+body+'</p>' if body else ""
@@ -109,7 +133,7 @@ def render(m, preview=False):
             out.append(f'<section id="s{i}" class="hero variant-{variant} {"has-photo" if pic else ""}"><div class="shell"><div class="copy">{kick}<h1>{title}</h1>{p}<div class="actions">{c}{secondary}</div></div>{pic or art(style)}</div></section>')
         elif kind in ("contact","cta","location"):
             anchor='<span id="contato"></span>' if kind=="contact" else ""
-            out.append(f'<section id="s{i}" class="section variant-{variant}"><div class="shell">{anchor}<div class="contact-box">{kick}<h2>{title}</h2>{p}<div class="actions">{button(label) if has_phone else ""}</div>{pic}</div></div></section>')
+            out.append(f'<section id="s{i}" class="section variant-{variant} surface-{surface}"><div class="shell">{anchor}<div class="contact-box">{kick}<h2>{title}</h2>{p}<div class="actions">{button(label) if has_phone else ""}</div>{pic}</div></div></section>')
         else:
             components=cards(s,kind)
             if components:
@@ -118,12 +142,14 @@ def render(m, preview=False):
                 inner=f'<div class="split"><div>{kick}<h2>{title}</h2>{p}</div>{pic or art(style)}</div>'
             else:
                 inner=f'<div class="intro"><div>{kick}<h2>{title}</h2></div>{p}</div>'
-            out.append(f'<section id="s{i}" class="section variant-{variant} kind-{kind}"><div class="shell">{inner}</div></section>')
+            out.append(f'<section id="s{i}" class="section variant-{variant} kind-{kind} surface-{surface}"><div class="shell">{inner}</div></section>')
     # Preview does not contain an external WhatsApp URL.
     cta=button() if has_phone else ""
     floating='<a class="btn floating" href="'+link+'">WhatsApp ↗</a>' if has_phone and not preview else ""
+    script_policy = "" if preview else "; script-src 'sha256-"+SCRIPT_HASH+"'"
+    script_tag = "" if preview else "<script>"+SCRIPT+"</script>"
     return ('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-            '<meta name="robots" content="noindex,nofollow"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data:; base-uri \'none\'; form-action \'none\'">'
-            '<title>'+esc(m["title"])+'</title><meta name="description" content="'+esc(m["description"])+'"><style>'+css+CSS+'</style></head>'
-            '<body class="style-'+style+'"><header class="top"><div class="shell nav"><a class="brand" href="#s0">'+esc(m["title"])+'</a><nav class="navlinks" aria-label="Navegação">'+nav+'</nav>'+cta+'<details class="mobile-nav"><summary>Menu ☰</summary><div>'+nav+'</div></details></div></header>'
-            '<main>'+''.join(out)+'</main><footer class="foot"><div class="shell"><strong>'+esc(m["title"])+'</strong><span>Projeto demonstrativo desenvolvido pela FLP Systems.</span></div></footer>'+floating+'</body></html>')
+            '<meta name="robots" content="noindex,nofollow"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data:; base-uri \'none\'; form-action \'none\''+script_policy+'">'
+            '<title>'+esc(m["title"])+'</title><meta name="description" content="'+esc(m["description"])+'"><style>'+css+CSS+EXTRA_CSS+'</style></head>'
+            '<body class="style-'+style+' spacing-'+t.get('spacing','balanced')+' corners-'+t.get('corners','auto')+'"><header class="top"><div class="shell nav"><a class="brand" href="#s0">'+esc(m["title"])+'</a><nav class="navlinks" aria-label="Navegação">'+nav+'</nav>'+cta+'<details class="mobile-nav"><summary>Menu ☰</summary><div>'+nav+'</div></details></div></header>'
+            '<main>'+''.join(out)+'</main><footer class="foot"><div class="shell"><strong>'+esc(m["title"])+'</strong><span>Projeto demonstrativo desenvolvido pela FLP Systems.</span></div></footer>'+floating+script_tag+'</body></html>')
