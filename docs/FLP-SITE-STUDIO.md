@@ -24,3 +24,17 @@ Branch: feat/flp-site-studio, baseada em feat/flp-ferramentas-comerciais.
 - O fluxo real depende de provedores de IA e credenciais Cloudflare válidos. Não há demonstração publicada no desenvolvimento desta branch.
 - O app existente é local; não exponha a API à internet sem autenticação e controles adicionais.
 - Testes adicionados em backend/tests/test_site_studio.py. Validação de build e execução em ambiente real ainda pendentes.
+
+
+## Evolução premium — referência visual LPaaS
+
+O material de referência fornecido continha uma captura pública da landing page comercial (index.html), scripts/assets e seis imagens de exemplos. Não continha o ambiente autenticado nem o motor de geração privado. Foram extraídos princípios de design, não código, fotos ou identidade de terceiros.
+
+- Motor original com 9 estilos, 20 grupos de nichos, 11 tipos de seções e 7 opções de composição. Cabeçalho responsivo, FAQ interativo nativo, CTA, tipografia editorial e ilustração geométrica original quando não há foto.
+- Criação completa com IA em um clique, com validação mínima de estrutura (5 seções e 4 tipos distintos, começando com hero). Edição de seção selecionada preserva as demais. Projetos antigos continuam editáveis.
+- Ajustes locais de estilo, paleta, variante, textos, CTA, cards e perguntas sem consumo de IA. Histórico e publicação permanecem como antes.
+- Checklist estrutural de oito critérios, não uma avaliação visual automatizada. Fotos reais são fornecidas pelo cliente ou escolhidas pelo operador no Pexels; sem foto, a interface usa arte abstrata original.
+- Opcional: configure PEXELS_API_KEY no backend/.env (https://www.pexels.com/api/). Pesquise por nicho e selecione uma foto ilustrativa. A importação otimiza para WebP e preserva crédito. Não represente foto de banco como instalação, equipe ou cliente real. Respeite licença e cotas do Pexels.
+- Não há treinamento de pesos de modelos de IA nem geração automática de fotografia; o sistema usa direção de arte, validação e composição programática próprias. Não é uma reprodução integral do LPaaS.
+- Limites de IA e cobrança potencial permanecem os do sistema existente. Não foi adicionada cobrança ou contratação automática.
+- Testes adicionados em test_site_studio.py. Execute pytest e npm run build antes de mesclar. Teste um site com imagens autorizadas, compare todos os tamanhos e publique apenas depois de revisar.
