@@ -830,6 +830,9 @@ def migrar_banco(conexao):
         )
         """
     )
+    colunas_analise = {linha[1] for linha in conexao.execute("PRAGMA table_info(analises_conversa)")}
+    if "orientacao_comercial" not in colunas_analise:
+        conexao.execute("ALTER TABLE analises_conversa ADD COLUMN orientacao_comercial TEXT")
     conexao.commit()
 
     _criar_indices(conexao)

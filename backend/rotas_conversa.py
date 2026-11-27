@@ -184,7 +184,7 @@ def confirmar_contato(lead_ref):
 def _ultima_analise(conexao, canal, lead_ref):
     linha = conexao.execute(
         "SELECT estagio, leitura, objetivo, resposta_sugerida, evitar, provedor, "
-        "mensagens_consideradas, criada_em FROM analises_conversa "
+        "mensagens_consideradas, criada_em, orientacao_comercial FROM analises_conversa "
         "WHERE canal = ? AND lead_ref = ? ORDER BY id DESC LIMIT 1",
         (canal, str(lead_ref)),
     ).fetchone()
@@ -195,6 +195,12 @@ def _ultima_analise(conexao, canal, lead_ref):
         analise["evitar"] = json.loads(analise["evitar"] or "[]")
     except (TypeError, json.JSONDecodeError):
         analise["evitar"] = []
+    try:
+        extra = json.loads(analise.pop("orientacao_comercial", None) or "{}")
+        if isinstance(extra, dict):
+            analise.update({k: extra[k] for k in ("objecoes", "contraproposta", "servicos_recomendados", "proximo_passo") if k in extra})
+    except (TypeError, json.JSONDecodeError):
+        pass
     return analise
 
 
@@ -316,12 +322,13 @@ def analisar_conversa(canal, lead_ref):
     try:
         conexao.execute(
             "INSERT INTO analises_conversa (canal, lead_ref, estagio, leitura, objetivo, "
-            "resposta_sugerida, evitar, provedor, mensagens_consideradas, criada_em) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "resposta_sugerida, evitar, provedor, mensagens_consideradas, criada_em, orientacao_comercial) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 canal, str(lead_ref), analise["estagio"], analise["leitura"], analise["objetivo"],
                 analise["resposta_sugerida"], json.dumps(analise["evitar"], ensure_ascii=False),
                 provedor, len(mensagens), _agora(),
+                json.dumps({k: analise.get(k) for k in ("objecoes", "contraproposta", "servicos_recomendados", "proximo_passo") if k in analise}, ensure_ascii=False),
             ),
         )
         conexao.commit()

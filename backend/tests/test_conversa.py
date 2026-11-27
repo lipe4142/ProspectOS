@@ -503,3 +503,16 @@ class TestRegistroContato:
         })
         assert cliente.post("/api/conversa/maps/place-1/confirmar-contato").get_json()["alterado"] is False
         assert cliente.get("/api/leads/place-1").get_json()["status"] == status
+
+
+def test_parser_orientacao_comercial():
+    import json
+    analise = ia._parsear_analise_conversa(json.dumps({
+        "estagio": "objecao", "objecoes": ["Preço acima do orçamento"],
+        "contraproposta": "Avaliar escopo menor", "servicos_recomendados": ["Landing page"],
+        "proximo_passo": "Confirmar orçamento", "evitar": []
+    }))
+    assert analise["objecoes"] == ["Preço acima do orçamento"]
+    assert analise["contraproposta"] == "Avaliar escopo menor"
+    assert analise["servicos_recomendados"] == ["Landing page"]
+    assert analise["proximo_passo"] == "Confirmar orçamento"

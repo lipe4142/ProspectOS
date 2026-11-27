@@ -64,9 +64,10 @@ class NenhumProvedorDisponivel(Exception):
     """Todos os provedores configurados falharam (ou nenhum está configurado).
     `erro_final` carrega o último erro real, ou None se nada chegou a ser tentado."""
 
-    def __init__(self, erro_final):
+    def __init__(self, erro_final, avisos=None):
         super().__init__(str(erro_final))
         self.erro_final = erro_final
+        self.avisos = avisos or []
 
 
 def _provedor_em_cooldown(provedor):
@@ -213,7 +214,12 @@ def executar_com_fallback(system, user, parser=None, descricao_log="gerar mensag
             erro_final = erro
             continue
 
-    raise NenhumProvedorDisponivel(erro_final)
+    raise NenhumProvedorDisponivel(erro_final, [
+        aviso if any(m in aviso for m in ("cota gratuita excedida", "demorou demais", "serviço indisponível"))
+        and not any(m in aviso.lower() for m in ("api_key", "api key", "bearer", "sk-"))
+        and len(aviso) < 180 else aviso.split(" indisponível agora", 1)[0] + " indisponível; confira as configurações e os logs."
+        for aviso in avisos
+    ])
 
 
 # ---------------------------------------------------------------------------
@@ -704,6 +710,10 @@ Responda SEMPRE um único objeto JSON válido, sem markdown e sem texto fora do 
 - "leitura": 1-3 frases interpretando o que o lead realmente quis dizer e o que isso revela sobre a chance de fechar. Seja específico sobre ESTA conversa, não genérico.
 - "objetivo": uma frase curta dizendo qual é o próximo objetivo tático AGORA (ex.: "Entender qual é a real dor dele com o site atual antes de falar de preço").
 - "resposta_sugerida": a próxima mensagem pronta para enviar, na voz de quem vende (primeira pessoa do singular). Curta, natural, fácil de responder. Sem saudação repetida se a conversa já está em andamento.
+- "objecoes": array de até 4 strings: objeções explícitas, com evidência da conversa; vazio se não houver.
+- "contraproposta": string com alternativa de escopo ou condição a avaliar internamente, sem inventar preço ou prometer desconto. Vazia quando desnecessária.
+- "servicos_recomendados": array de até 4 strings com serviços pertinentes (site, landing page, sistema ou app), distinguindo sugestão de demanda confirmada.
+- "proximo_passo": string com ação concreta para o vendedor, incluindo quando parar se houver recusa.
 - "evitar": array de 1 a 4 strings curtas com o que NÃO dizer agora (ex.: "Falar de preço antes dele demonstrar interesse"). Cada item é uma frase objetiva.
 
 Princípios de negociação que você aplica:
@@ -792,7 +802,19 @@ def _parsear_analise_conversa(resposta_bruta):
         if str(item).strip()
     ]
 
+    def lista(chave):
+        valor = dados.get(chave) or []
+        if isinstance(valor, str):
+            valor = [valor]
+        if not isinstance(valor, list):
+            return []
+        return [v.strip()[:400] for v in valor[:4] if isinstance(v, str) and v.strip()]
+
     return {
+        "objecoes": lista("objecoes"),
+        "servicos_recomendados": lista("servicos_recomendados"),
+        "contraproposta": str(dados.get("contraproposta") or "").strip()[:1200],
+        "proximo_passo": str(dados.get("proximo_passo") or "").strip()[:800],
         "estagio": estagio,
         "leitura": str(dados.get("leitura", "")).strip()[:MAX_CARACTERES_LEITURA_ANALISE],
         "objetivo": str(dados.get("objetivo", "")).strip()[:MAX_CARACTERES_OBJETIVO_ANALISE],

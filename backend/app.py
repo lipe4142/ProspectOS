@@ -54,6 +54,8 @@ import processar
 import rotas_analytics
 import rotas_config
 import rotas_conversa
+import rotas_comercial
+import rotas_studio
 import rotas_instagram
 import rotas_leads
 
@@ -63,6 +65,8 @@ app.register_blueprint(rotas_instagram.bp)
 app.register_blueprint(rotas_analytics.bp)
 app.register_blueprint(rotas_config.bp)
 app.register_blueprint(rotas_conversa.bp)
+app.register_blueprint(rotas_comercial.bp)
+app.register_blueprint(rotas_studio.bp)
 
 
 @app.errorhandler(Exception)
@@ -111,6 +115,7 @@ def preparar_banco_no_startup():
     conexao = sqlite3.connect(db.CAMINHO_BANCO, timeout=10)
     try:
         processar.preparar_banco(conexao)
+        rotas_studio.prepare(conexao)
     finally:
         conexao.close()
 
