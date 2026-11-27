@@ -1,4 +1,5 @@
 import { useEffect } from "react"
+import { SiteStudioPage } from "@/pages/SiteStudioPage"
 import { toast } from "sonner"
 import { BrowserRouter, Route, Routes } from "react-router-dom"
 import { QueryClientProvider } from "@tanstack/react-query"
@@ -43,6 +44,7 @@ export default function App() {
           <PaletaComando />
           <Routes>
             <Route path="/" element={<DashboardPage />} />
+            <Route path="/site-studio" element={<SiteStudioPage />} />
             <Route path="/tarefas" element={<TarefasPage />} />
             <Route path="/sessao" element={<SessaoProspeccaoPage />} />
             <Route path="/leads" element={<LeadsMapsPage />} />
