@@ -329,7 +329,7 @@ def normalizar_instagram(valor):
         return None
     perfil = re.fullmatch(r"@?([A-Za-z0-9_.]{1,30})", valor)
     if not perfil:
-        perfil = re.fullmatch(r"https://(?:www\\.)?instagram\\.com/([A-Za-z0-9_.]{1,30})/?(?:\\?[^#]*)?", valor, re.I)
+        perfil = re.fullmatch(r"https://(?:www\.)?instagram\.com/([A-Za-z0-9_.]{1,30})/?(?:\?[^#]*)?", valor, re.I)
     if not perfil or perfil.group(1).lower() in {"p", "reel", "reels", "stories", "explore", "accounts", "direct"}:
         raise ValueError("Informe o @ ou o link HTTPS do perfil do Instagram da FLP Systems.")
     return "https://www.instagram.com/" + perfil.group(1) + "/"
